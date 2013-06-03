@@ -398,12 +398,23 @@ bool UsbAsyncApiTransferFunction::ConvertRecipientSafely(
   return converted;
 }
 
-UsbFindDevicesFunction::UsbFindDevicesFunction() {}
+UsbFindDevicesFunction::UsbFindDevicesFunction()
+    :  service_(NULL) {}
 
 UsbFindDevicesFunction::~UsbFindDevicesFunction() {}
 
 void UsbFindDevicesFunction::SetDeviceForTest(UsbDevice* device) {
   device_for_test_ = device;
+}
+
+bool UsbFindDevicesFunction::PrePrepare() {
+  service_ = UsbServiceFactory::GetInstance()->GetForProfile(profile());
+  if (service_ == NULL) {
+    LOG(WARNING) << "Could not get UsbService for active profile.";
+    SetError(kErrorNoDevice);
+    return false;
+  }
+  return UsbAsyncApiFunction::PrePrepare();
 }
 
 bool UsbFindDevicesFunction::Prepare() {
@@ -440,16 +451,8 @@ void UsbFindDevicesFunction::AsyncWorkStart() {
     return;
   }
 
-  UsbService* const service = UsbServiceFactory::GetInstance()->GetForProfile(
-      profile());
-  if (!service) {
-    LOG(WARNING) << "Could not get UsbService for active profile.";
-    CompleteWithError(kErrorNoDevice);
-    return;
-  }
-
-  service->FindDevices(vendor_id, product_id, interface_id, &devices_,
-                       base::Bind(&UsbFindDevicesFunction::OnCompleted, this));
+  service_->FindDevices(vendor_id, product_id, interface_id, &devices_,
+                        base::Bind(&UsbFindDevicesFunction::OnCompleted, this));
 }
 
 void UsbFindDevicesFunction::OnCompleted() {

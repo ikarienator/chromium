@@ -66,6 +66,7 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
  protected:
   virtual ~UsbFindDevicesFunction();
 
+  virtual bool PrePrepare() OVERRIDE;
   virtual bool Prepare() OVERRIDE;
   virtual void AsyncWorkStart() OVERRIDE;
 
@@ -75,6 +76,7 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
   scoped_ptr<base::ListValue> result_;
   std::vector<scoped_refptr<UsbDevice> > devices_;
   scoped_ptr<extensions::api::usb::FindDevices::Params> parameters_;
+  UsbService* service_;
 };
 
 class UsbListInterfacesFunction : public UsbAsyncApiFunction {
