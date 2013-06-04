@@ -56,13 +56,13 @@ class UsbDevice : public base::RefCounted<UsbDevice> {
   // Usually you will not want to directly create a UsbDevice, favoring to let
   // the UsbService take care of the logistics of getting a platform device
   // handle and handling events for it.
-  UsbDevice(UsbService* service, PlatformUsbDeviceHandle handle);
+  UsbDevice(UsbService* service, int device, PlatformUsbDeviceHandle handle);
 
   PlatformUsbDeviceHandle handle() { return handle_; }
+  int device() { return device_; }
 
-  // Close the USB device and release the underlying platform device. |callback|
-  // is invoked after the device has been closed.
-  virtual void Close(const base::Callback<void()>& callback);
+  // Close the USB device and release the underlying platform device.
+  virtual void Close();
 
   virtual void ListInterfaces(UsbConfigDescriptor* config,
                               const UsbInterfaceCallback& callback);
@@ -138,8 +138,9 @@ class UsbDevice : public base::RefCounted<UsbDevice> {
     UsbTransferCallback callback;
   };
 
-  // Checks that the device has not yet been closed.
-  void CheckDevice();
+  friend class RefCountedPlatformUsbDevice;
+
+  void InternalClose();
 
   // Submits a transfer and starts tracking it. Retains the buffer and copies
   // the completion callback until the transfer finishes, whereupon it invokes
@@ -155,6 +156,7 @@ class UsbDevice : public base::RefCounted<UsbDevice> {
   // responsible for its destruction, there is no case where a UsbDevice can
   // have outlived its originating UsbService.
   UsbService* const service_;
+  int const device_;
   PlatformUsbDeviceHandle handle_;
 
   // transfers_ tracks all in-flight transfers associated with this device,

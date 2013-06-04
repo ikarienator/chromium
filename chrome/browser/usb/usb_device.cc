@@ -90,57 +90,94 @@ static UsbTransferStatus ConvertTransferStatus(
 
 static void LIBUSB_CALL HandleTransferCompletion(
     struct libusb_transfer* transfer) {
-  UsbDevice* const device = reinterpret_cast<UsbDevice*>(transfer->user_data);
+  UsbDevice* const device =
+      reinterpret_cast<UsbDevice*>(transfer->user_data);
   device->TransferComplete(transfer);
+  libusb_free_transfer(transfer);
 }
 
 }  // namespace
 
-UsbDevice::Transfer::Transfer() : length(0) {}
+UsbDevice::Transfer::Transfer()
+    : transfer_type(USB_TRANSFER_CONTROL), length(0) {}
 
 UsbDevice::Transfer::~Transfer() {}
 
-UsbDevice::UsbDevice(UsbService* service, PlatformUsbDeviceHandle handle)
-    : service_(service), handle_(handle) {
+#define CHECK_DEVICE(callback, args...) \
+  do { \
+    if (handle_ == NULL) { \
+      DLOG(INFO) << "Device is disconnected: " << __PRETTY_FUNCTION__; \
+      callback.Run(args);\
+      return; \
+    } \
+  } while(0);
+
+#define CHECK_DEVICE_RETURN \
+  do { \
+    if (handle_ == NULL) { \
+      DLOG(INFO) << "Device is disconnected: " << __PRETTY_FUNCTION__; \
+      return; \
+    } \
+  } while(0);
+
+UsbDevice::UsbDevice(UsbService* service,
+                                 int device,
+                                 PlatformUsbDeviceHandle handle)
+    : service_(service), device_(device), handle_(handle) {
   DCHECK(handle) << "Cannot create device with NULL handle.";
 }
 
-UsbDevice::UsbDevice() : service_(NULL), handle_(NULL) {}
+UsbDevice::UsbDevice()
+    : service_(NULL), device_(0), handle_(NULL) {
+}
 
-UsbDevice::~UsbDevice() {}
+UsbDevice::~UsbDevice() {
+  InternalClose();
+}
 
-void UsbDevice::Close(const base::Callback<void()>& callback) {
-  CheckDevice();
+void UsbDevice::Close() {
+  if (handle_ == 0)
+    return;
   service_->CloseDevice(this);
-  handle_ = NULL;
-  callback.Run();
 }
 
 void UsbDevice::TransferComplete(PlatformUsbTransferHandle handle) {
-  base::AutoLock lock(lock_);
-
-  // TODO(gdk): Handle device disconnect.
   DCHECK(ContainsKey(transfers_, handle)) << "Missing transfer completed";
-  Transfer* const transfer = &transfers_[handle];
+
+  Transfer transfer;
+  {
+    base::AutoLock guard(lock_);
+    transfer = transfers_[handle];
+    transfers_.erase(handle);
+  }
+
+  CHECK_DEVICE(transfer.callback,
+               UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+               scoped_refptr<net::IOBuffer>(), 0);
+
+  if (handle->status != LIBUSB_TRANSFER_COMPLETED &&
+      handle->status != LIBUSB_TRANSFER_CANCELLED) {
+    service_->ScheduleEnumerateDevice();
+  }
 
   DCHECK(handle->actual_length >= 0) << "Negative actual length received";
   size_t actual_length =
       static_cast<size_t>(std::max(handle->actual_length, 0));
 
-  DCHECK(transfer->length >= actual_length) <<
+  DCHECK(transfer.length >= actual_length) <<
       "data too big for our buffer (libusb failure?)";
 
-  scoped_refptr<net::IOBuffer> buffer = transfer->buffer;
-  switch (transfer->transfer_type) {
+  scoped_refptr<net::IOBuffer> buffer = transfer.buffer;
+  switch (transfer.transfer_type) {
     case USB_TRANSFER_CONTROL:
       // If the transfer is a control transfer we do not expose the control
       // setup header to the caller. This logic strips off the header if
       // present before invoking the callback provided with the transfer.
       if (actual_length > 0) {
-        CHECK(transfer->length >= LIBUSB_CONTROL_SETUP_SIZE) <<
+        CHECK(transfer.length >= LIBUSB_CONTROL_SETUP_SIZE) <<
             "buffer was not correctly set: too small for the control header";
 
-        if (transfer->length >= actual_length &&
+        if (transfer.length >= actual_length &&
             actual_length >= LIBUSB_CONTROL_SETUP_SIZE) {
           // If the payload is zero bytes long, pad out the allocated buffer
           // size to one byte so that an IOBuffer of that size can be allocated.
@@ -168,7 +205,7 @@ void UsbDevice::TransferComplete(PlatformUsbTransferHandle handle) {
             // all the data the packet can hold.
             if (actual_length < packet_buffer_start) {
               CHECK(packet_buffer_start + packet->actual_length <=
-                    transfer->length);
+                    transfer.length);
               memmove(buffer->data() + actual_length,
                       buffer->data() + packet_buffer_start,
                       packet->actual_length);
@@ -189,16 +226,13 @@ void UsbDevice::TransferComplete(PlatformUsbTransferHandle handle) {
       NOTREACHED() << "Invalid usb transfer type";
   }
 
-  transfer->callback.Run(ConvertTransferStatus(handle->status), buffer,
-                         actual_length);
-
-  transfers_.erase(handle);
-  libusb_free_transfer(handle);
+  transfer.callback.Run(ConvertTransferStatus(handle->status), buffer,
+                        actual_length);
 }
 
 void UsbDevice::ListInterfaces(UsbConfigDescriptor* config,
                                const UsbInterfaceCallback& callback) {
-  CheckDevice();
+  CHECK_DEVICE(callback, false);
 
   PlatformUsbDevice device = libusb_get_device(handle_);
 
@@ -213,7 +247,7 @@ void UsbDevice::ListInterfaces(UsbConfigDescriptor* config,
 
 void UsbDevice::ClaimInterface(const int interface_number,
                                const UsbInterfaceCallback& callback) {
-  CheckDevice();
+  CHECK_DEVICE(callback, false);
 
   const int claim_result = libusb_claim_interface(handle_, interface_number);
   callback.Run(claim_result == 0);
@@ -221,7 +255,7 @@ void UsbDevice::ClaimInterface(const int interface_number,
 
 void UsbDevice::ReleaseInterface(const int interface_number,
                                  const UsbInterfaceCallback& callback) {
-  CheckDevice();
+  CHECK_DEVICE(callback, false);
 
   const int release_result = libusb_release_interface(handle_,
                                                       interface_number);
@@ -232,7 +266,7 @@ void UsbDevice::SetInterfaceAlternateSetting(
     const int interface_number,
     const int alternate_setting,
     const UsbInterfaceCallback& callback) {
-  CheckDevice();
+  CHECK_DEVICE(callback, false);
 
   const int setting_result = libusb_set_interface_alt_setting(handle_,
       interface_number, alternate_setting);
@@ -245,7 +279,8 @@ void UsbDevice::ControlTransfer(const UsbEndpointDirection direction,
     const uint8 request, const uint16 value, const uint16 index,
     net::IOBuffer* buffer, const size_t length, const unsigned int timeout,
     const UsbTransferCallback& callback) {
-  CheckDevice();
+  CHECK_DEVICE(callback, UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+               scoped_refptr<net::IOBuffer>(), 0);
 
   const size_t resized_length = LIBUSB_CONTROL_SETUP_SIZE + length;
   scoped_refptr<net::IOBuffer> resized_buffer(new net::IOBufferWithSize(
@@ -270,7 +305,8 @@ void UsbDevice::ControlTransfer(const UsbEndpointDirection direction,
 void UsbDevice::BulkTransfer(const UsbEndpointDirection direction,
     const uint8 endpoint, net::IOBuffer* buffer, const size_t length,
     const unsigned int timeout, const UsbTransferCallback& callback) {
-  CheckDevice();
+  CHECK_DEVICE(callback, UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+               scoped_refptr<net::IOBuffer>(), 0);
 
   struct libusb_transfer* const transfer = libusb_alloc_transfer(0);
   const uint8 new_endpoint = ConvertTransferDirection(direction) | endpoint;
@@ -283,7 +319,8 @@ void UsbDevice::BulkTransfer(const UsbEndpointDirection direction,
 void UsbDevice::InterruptTransfer(const UsbEndpointDirection direction,
     const uint8 endpoint, net::IOBuffer* buffer, const size_t length,
     const unsigned int timeout, const UsbTransferCallback& callback) {
-  CheckDevice();
+  CHECK_DEVICE(callback, UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+               scoped_refptr<net::IOBuffer>(), 0);
 
   struct libusb_transfer* const transfer = libusb_alloc_transfer(0);
   const uint8 new_endpoint = ConvertTransferDirection(direction) | endpoint;
@@ -297,7 +334,8 @@ void UsbDevice::IsochronousTransfer(const UsbEndpointDirection direction,
     const uint8 endpoint, net::IOBuffer* buffer, const size_t length,
     const unsigned int packets, const unsigned int packet_length,
     const unsigned int timeout, const UsbTransferCallback& callback) {
-  CheckDevice();
+  CHECK_DEVICE(callback, UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+               scoped_refptr<net::IOBuffer>(), 0);
 
   const uint64 total_length = packets * packet_length;
   CHECK(packets <= length && total_length <= length) <<
@@ -314,12 +352,15 @@ void UsbDevice::IsochronousTransfer(const UsbEndpointDirection direction,
 }
 
 void UsbDevice::ResetDevice(const base::Callback<void(bool)>& callback) {
-  CheckDevice();
+  CHECK_DEVICE(callback, false);
   callback.Run(libusb_reset_device(handle_) == 0);
 }
 
-void UsbDevice::CheckDevice() {
-  DCHECK(handle_) << "Device is already closed.";
+void UsbDevice::InternalClose() {
+  if (handle_ == 0)
+    return;
+  libusb_close(handle_);
+  handle_ = NULL;
 }
 
 void UsbDevice::SubmitTransfer(PlatformUsbTransferHandle handle,

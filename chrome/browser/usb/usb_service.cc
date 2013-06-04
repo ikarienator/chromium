@@ -5,12 +5,14 @@
 #include "chrome/browser/usb/usb_service.h"
 
 #include <vector>
+#include <set>
 
 #include "base/bind.h"
 #include "base/bind_helpers.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "chrome/browser/usb/usb_device.h"
+#include "content/public/browser/browser_thread.h"
 #include "third_party/libusb/src/libusb/libusb.h"
 
 #if defined(OS_CHROMEOS)
@@ -20,6 +22,8 @@
 #endif  // defined(OS_CHROMEOS)
 
 using std::vector;
+using std::set;
+using content::BrowserThread;
 
 // The UsbEventHandler works around a design flaw in the libusb interface. There
 // is currently no way to signal to libusb that any caller into one of the event
@@ -57,7 +61,72 @@ class UsbEventHandler : public base::PlatformThread::Delegate {
   DISALLOW_EVIL_CONSTRUCTORS(UsbEventHandler);
 };
 
-UsbService::UsbService() {
+// RefCountedPlatformUsbDevice takes care of managing the underlying reference
+// count of a single PlatformUsbDevice. This allows us to construct things
+// like vectors of RefCountedPlatformUsbDevices and not worry about having to
+// explicitly unreference them after use.
+class RefCountedPlatformUsbDevice:
+    public base::RefCounted<RefCountedPlatformUsbDevice> {
+ public:
+  explicit RefCountedPlatformUsbDevice(PlatformUsbDevice device,
+                                       int unique_id);
+  PlatformUsbDevice device() const { return device_; }
+  int unique_id() const { return unique_id_; }
+
+  scoped_refptr<UsbDevice> OpenDevice(UsbService* service);
+  void CloseDevice(UsbDevice* device);
+
+ private:
+  virtual ~RefCountedPlatformUsbDevice();
+  friend class base::RefCounted<RefCountedPlatformUsbDevice>;
+  std::vector<scoped_refptr<UsbDevice> > handles_;
+  PlatformUsbDevice device_;
+  const int unique_id_;
+  DISALLOW_COPY_AND_ASSIGN(RefCountedPlatformUsbDevice);
+};
+
+RefCountedPlatformUsbDevice::RefCountedPlatformUsbDevice(
+    PlatformUsbDevice device,
+    int unique_id) : device_(device), unique_id_(unique_id) {
+  libusb_ref_device(device_);
+}
+
+RefCountedPlatformUsbDevice::~RefCountedPlatformUsbDevice() {
+  libusb_unref_device(device_);
+  for (vector<scoped_refptr<UsbDevice> >::iterator it = handles_.begin();
+      it != handles_.end();
+      ++it) {
+    it->get()->InternalClose();
+  }
+  STLClearObject(&handles_);
+}
+
+scoped_refptr<UsbDevice>
+RefCountedPlatformUsbDevice::OpenDevice(UsbService* service) {
+  PlatformUsbDeviceHandle handle;
+  if (0 == libusb_open(device_, &handle)) {
+    scoped_refptr<UsbDevice> wrapper =
+        make_scoped_refptr(new UsbDevice(service, unique_id_, handle));
+    handles_.push_back(wrapper);
+    return wrapper;
+  }
+  return scoped_refptr<UsbDevice>();
+}
+
+void RefCountedPlatformUsbDevice::CloseDevice(UsbDevice* device) {
+  device->InternalClose();
+  for (vector<scoped_refptr<UsbDevice> >::iterator it = handles_.begin();
+        it != handles_.end();
+        ++it) {
+    if (it->get() == device){
+      handles_.erase(it);
+      return;
+    }
+  }
+}
+
+UsbService::UsbService()
+    : next_unique_id_(1) {
   libusb_init(&context_);
   event_handler_ = new UsbEventHandler(context_);
 }
@@ -71,8 +140,8 @@ void UsbService::Cleanup() {
 
 void UsbService::FindDevices(const uint16 vendor_id,
                              const uint16 product_id,
-                             int interface_id,
-                             vector<scoped_refptr<UsbDevice> >* devices,
+                             const int interface_id,
+                             vector<int>* devices,
                              const base::Callback<void()>& callback) {
   DCHECK(event_handler_) << "FindDevices called after event handler stopped.";
 #if defined(OS_CHROMEOS)
@@ -106,7 +175,7 @@ void UsbService::FindDevices(const uint16 vendor_id,
 
 void UsbService::FindDevicesImpl(const uint16 vendor_id,
                                  const uint16 product_id,
-                                 vector<scoped_refptr<UsbDevice> >* devices,
+                                 vector<int>* devices,
                                  const base::Callback<void()>& callback,
                                  bool success) {
   base::ScopedClosureRunner run_callback(callback);
@@ -119,64 +188,72 @@ void UsbService::FindDevicesImpl(const uint16 vendor_id,
   if (!success)
     return;
 
-  DeviceVector enumerated_devices;
-  EnumerateDevices(&enumerated_devices);
-  if (enumerated_devices.empty())
-    return;
+  EnumerateDevices();
 
-  for (unsigned int i = 0; i < enumerated_devices.size(); ++i) {
-    PlatformUsbDevice device = enumerated_devices[i].device();
-    if (DeviceMatches(device, vendor_id, product_id)) {
-      UsbDevice* const wrapper = LookupOrCreateDevice(device);
-      if (wrapper)
-        devices->push_back(wrapper);
+  for (DeviceMap::iterator it = devices_.begin();
+      it != devices_.end(); ++it) {
+    if (DeviceMatches(it->first, vendor_id, product_id)) {
+      devices->push_back(it->second->unique_id());
     }
   }
 }
 
-void UsbService::CloseDevice(scoped_refptr<UsbDevice> device) {
-  DCHECK(event_handler_) << "CloseDevice called after event handler stopped.";
-
-  PlatformUsbDevice platform_device = libusb_get_device(device->handle());
-  if (!ContainsKey(devices_, platform_device)) {
-    LOG(WARNING) << "CloseDevice called for device we're not tracking!";
-    return;
+scoped_refptr<UsbDevice> UsbService::OpenDevice(int device) {
+  EnumerateDevices();
+  for (DeviceMap::iterator it = devices_.begin();
+      it != devices_.end(); ++it) {
+    if (it->second->unique_id() == device) {
+      PlatformUsbDeviceHandle handle;
+      if (0 == libusb_open(it->first, &handle))
+        return new UsbDevice(this, device, handle);
+      return NULL;
+    }
   }
-
-  devices_.erase(platform_device);
-  libusb_close(device->handle());
+  return NULL;
 }
 
-UsbService::RefCountedPlatformUsbDevice::RefCountedPlatformUsbDevice(
-    PlatformUsbDevice device) : device_(device) {
-  libusb_ref_device(device_);
+void UsbService::CloseDevice(UsbDevice* handle) {
+  int device = handle->device();
+
+  for (DeviceMap::iterator it = devices_.begin();
+      it != devices_.end(); ++it) {
+    if (it->second->unique_id() == device) {
+      it->second->CloseDevice(handle);
+    }
+  }
 }
 
-UsbService::RefCountedPlatformUsbDevice::RefCountedPlatformUsbDevice(
-    const RefCountedPlatformUsbDevice& other) : device_(other.device_) {
-  libusb_ref_device(device_);
+void UsbService::ScheduleEnumerateDevice() {
+  BrowserThread::PostDelayedTask(
+      BrowserThread::UI,
+      FROM_HERE,
+      base::Bind(&UsbService::EnumerateDevices, base::Unretained(this)),
+      base::TimeDelta::FromSeconds(5));
 }
 
-UsbService::RefCountedPlatformUsbDevice::~RefCountedPlatformUsbDevice() {
-  libusb_unref_device(device_);
-}
-
-PlatformUsbDevice UsbService::RefCountedPlatformUsbDevice::device() {
-  return device_;
-}
-
-void UsbService::EnumerateDevices(DeviceVector* output) {
-  STLClearObject(output);
-
+void UsbService::EnumerateDevices() {
   libusb_device** devices = NULL;
   const ssize_t device_count = libusb_get_device_list(context_, &devices);
   if (device_count < 0)
     return;
 
+  set<int> connected_devices;
+  vector<PlatformUsbDevice> disconnected_devices;
+
   for (int i = 0; i < device_count; ++i) {
-    libusb_device* device = devices[i];
-    libusb_ref_device(device);
-    output->push_back(RefCountedPlatformUsbDevice(device));
+    connected_devices.insert(LookupOrCreateDevice(devices[i]));
+  }
+
+  for (DeviceMap::iterator it = devices_.begin();
+      it != devices_.end(); ++it) {
+    if (!ContainsKey(connected_devices, it->second->unique_id())) {
+      disconnected_devices.push_back(it->first);
+    }
+  }
+
+  for (size_t i = 0; i < disconnected_devices.size(); ++i) {
+    // This will delete those devices and invalidate their handles.
+    devices_.erase(disconnected_devices[i]);
   }
 
   libusb_free_device_list(devices, true);
@@ -191,16 +268,12 @@ bool UsbService::DeviceMatches(PlatformUsbDevice device,
   return descriptor.idVendor == vendor_id && descriptor.idProduct == product_id;
 }
 
-UsbDevice* UsbService::LookupOrCreateDevice(PlatformUsbDevice device) {
+int UsbService::LookupOrCreateDevice(PlatformUsbDevice device) {
   if (!ContainsKey(devices_, device)) {
-    libusb_device_handle* handle = NULL;
-    if (libusb_open(device, &handle)) {
-      LOG(WARNING) << "Could not open device.";
-      return NULL;
-    }
-
-    UsbDevice* wrapper = new UsbDevice(this, handle);
+    scoped_refptr<RefCountedPlatformUsbDevice> wrapper = make_scoped_refptr(
+        new RefCountedPlatformUsbDevice(device, next_unique_id_));
+    ++next_unique_id_;
     devices_[device] = wrapper;
   }
-  return devices_[device].get();
+  return devices_[device]->unique_id();
 }

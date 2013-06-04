@@ -116,8 +116,8 @@ IN_PROC_BROWSER_TEST_F(UsbApiTest, ListInterfaces) {
 IN_PROC_BROWSER_TEST_F(UsbApiTest, TransferEvent) {
   EXPECT_CALL(*mock_device_.get(),
               ControlTransfer(USB_DIRECTION_OUTBOUND,
-                              UsbDevice::STANDARD,
-                              UsbDevice::DEVICE,
+                              UsbDeviceHandle::STANDARD,
+                              UsbDeviceHandle::DEVICE,
                               1,
                               2,
                               3,

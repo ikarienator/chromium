@@ -23,6 +23,7 @@ namespace ListInterfaces = extensions::api::usb::ListInterfaces;
 namespace CloseDevice = extensions::api::usb::CloseDevice;
 namespace ControlTransfer = extensions::api::usb::ControlTransfer;
 namespace FindDevices = extensions::api::usb::FindDevices;
+namespace OpenDevice = extensions::api::usb::OpenDevice;
 namespace InterruptTransfer = extensions::api::usb::InterruptTransfer;
 namespace IsochronousTransfer = extensions::api::usb::IsochronousTransfer;
 namespace ReleaseInterface = extensions::api::usb::ReleaseInterface;
@@ -36,6 +37,7 @@ using std::string;
 using std::vector;
 using usb::ControlTransferInfo;
 using usb::Device;
+using usb::DeviceHandle;
 using usb::Direction;
 using usb::EndpointDescriptor;
 using usb::GenericTransferInfo;
@@ -299,14 +301,16 @@ static base::DictionaryValue* CreateTransferInfo(
     size_t length) {
   base::DictionaryValue* result = new base::DictionaryValue();
   result->SetInteger(kResultCodeKey, status);
-  result->Set(kDataKey, base::BinaryValue::CreateWithCopiedBuffer(data->data(),
-                                                                  length));
+  if (data.get())
+    result->Set(kDataKey,
+                base::BinaryValue::CreateWithCopiedBuffer(data->data(),
+                                                          length));
   return result;
 }
 
-static base::Value* PopulateDevice(int handle, int vendor_id, int product_id) {
+static base::Value* PopulateDevice(int device_id, int vendor_id, int product_id) {
   Device device;
-  device.handle = handle;
+  device.device = device_id;
   device.vendor_id = vendor_id;
   device.product_id = product_id;
   return device.ToValue().release();
@@ -427,12 +431,8 @@ void UsbFindDevicesFunction::AsyncWorkStart() {
   result_.reset(new base::ListValue());
 
   if (device_for_test_) {
-    UsbDeviceResource* const resource = new UsbDeviceResource(
-        extension_->id(),
-        device_for_test_);
-
     Device device;
-    result_->Append(PopulateDevice(manager_->Add(resource), 0, 0));
+    result_->Append(PopulateDevice(device_for_test_->device(), 0, 0));
     SetResult(result_.release());
     AsyncWorkCompleted();
     return;
@@ -457,18 +457,60 @@ void UsbFindDevicesFunction::AsyncWorkStart() {
 
 void UsbFindDevicesFunction::OnCompleted() {
   for (size_t i = 0; i < devices_.size(); ++i) {
-    UsbDevice* const device = devices_[i].get();
-    UsbDeviceResource* const resource =
-        new UsbDeviceResource(extension_->id(), device);
-
-    Device js_device;
-    result_->Append(PopulateDevice(manager_->Add(resource),
+    result_->Append(PopulateDevice(devices_[i],
                                    parameters_->options.vendor_id,
                                    parameters_->options.product_id));
   }
 
   SetResult(result_.release());
   AsyncWorkCompleted();
+}
+
+UsbOpenDeviceFunction::UsbOpenDeviceFunction() : service_(NULL) {}
+
+UsbOpenDeviceFunction::~UsbOpenDeviceFunction() {}
+
+bool UsbOpenDeviceFunction::PrePrepare() {
+  service_ = UsbServiceFactory::GetInstance()->GetForProfile(profile());
+  if (service_ == NULL) {
+    LOG(WARNING) << "Could not get UsbService for active profile.";
+    SetError(kErrorNoDevice);
+    return false;
+  }
+  return UsbAsyncApiFunction::PrePrepare();
+}
+
+bool UsbOpenDeviceFunction::Prepare() {
+  parameters_ = OpenDevice::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(parameters_.get());
+  return true;
+}
+
+void UsbOpenDeviceFunction::AsyncWorkStart() {
+  if (device_for_test_) {
+    DeviceHandle handle;
+    UsbDeviceResource* const resource = new UsbDeviceResource(
+        extension_->id(),
+        device_for_test_);
+    handle.handle = manager_->Add(resource);
+    SetResult(handle.ToValue().release());
+    AsyncWorkCompleted();
+    return;
+  }
+  scoped_refptr<UsbDevice> handle =
+      service_->OpenDevice(parameters_->device.device);
+  if (!handle.get()) {
+    CompleteWithError(kErrorDisconnect);
+    return;
+  }
+  UsbDeviceResource* const resource = new UsbDeviceResource(
+      extension_->id(),
+      handle);
+  DeviceHandle result;
+  result.handle = manager_->Add(resource);
+  SetResult(result.ToValue().release());
+  AsyncWorkCompleted();
+  return;
 }
 
 UsbListInterfacesFunction::UsbListInterfacesFunction() {}
@@ -614,12 +656,8 @@ void UsbCloseDeviceFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->Close(base::Bind(&UsbCloseDeviceFunction::OnCompleted,
-                                     this));
+  resource->device()->Close();
   RemoveUsbDeviceResource(parameters_->device.handle);
-}
-
-void UsbCloseDeviceFunction::OnCompleted() {
   AsyncWorkCompleted();
 }
 
@@ -981,8 +1019,8 @@ void UsbResetDeviceFunction::OnCompleted(bool success) {
     }
     // Close the device now because the handle is invalid after an
     // unsuccessful reset.
-    resource->device()->Close(
-        base::Bind(&UsbResetDeviceFunction::OnError, this));
+    resource->device()->Close();
+    OnError();
     return;
   }
   SetResult(Value::CreateBooleanValue(true));

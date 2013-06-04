@@ -31,6 +31,8 @@ UsbDeviceResource::UsbDeviceResource(const std::string& owner_extension_id,
                                      scoped_refptr<UsbDevice> device)
     : ApiResource(owner_extension_id), device_(device) {}
 
-UsbDeviceResource::~UsbDeviceResource() {}
+UsbDeviceResource::~UsbDeviceResource() {
+  device_->Close();
+}
 
 }  // namespace extensions

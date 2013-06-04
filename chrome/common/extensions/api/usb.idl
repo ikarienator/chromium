@@ -16,13 +16,18 @@ namespace usb {
   enum SynchronizationType {asynchronous, adaptive, synchronous};
   enum UsageType {data, feedback, explicitFeedback};
 
-  // A Device encapsulates everything that is needed to communicate with a USB
-  // device. They are returned by findDevice calls and have all of their
-  // fields populated before being returned.
+  // A <code>Device</code> uniquely identifies an USB device at certain
+  // location.
   dictionary Device {
-    long handle;
+    long device;
     long vendorId;
     long productId;
+  };
+
+  // A <code>DeviceHandle</code> encapsulates everything needed to communicate
+  // with a USB device.
+  dictionary DeviceHandle {
+    long handle;
   };
 
   dictionary EndpointDescriptor {
@@ -128,6 +133,7 @@ namespace usb {
 
   callback VoidCallback = void ();
   callback FindDevicesCallback = void (Device[] device);
+  callback OpenDeviceCallback = void (DeviceHandle handle);
   callback ListInterfacesCallback = void (InterfaceDescriptor[] descriptors);
   callback CloseDeviceCallback = void ();
   callback TransferCallback = void (TransferResultInfo info);
@@ -143,31 +149,45 @@ namespace usb {
     static void findDevices(FindDevicesOptions options,
         FindDevicesCallback callback);
 
-    // Closes an open device instance. Invoking operations on a device after it
-    // has been closed is a safe operation, but causes no action to be taken.
+    // Create a <code>DeviceHandle</code> for further operations.
+    //
+    // Multiple <code>DeviceHandle</code>s can be created for a same USB Device
+    // and it is possible to use those handles independently with the device
+    // support.
+    //
+    // Developers are responsible to call <code>closeDevice</code> to close
+    // the handle, otherwise the device handle will not be closed even if there
+    // is no reference to the <code>DeviceHandle</code> object.
+    // |device|: The device to be opened.
+    // |callback|: Invoked with the created <code>DeviceHandle</code>.
+    static void openDevice(Device device,
+                           OpenDeviceCallback callback);
+
+    // Closes an device handle. This operation does not effect other handles
+    // of the same device.
     // |device|: The device to close.
     // |callback|: The callback to invoke once the device is closed.
-    static void closeDevice(Device device,
+    static void closeDevice(DeviceHandle device,
         optional CloseDeviceCallback callback);
 
     // Lists all the interfaces on the USB device.
     // |device|: The device from which the interfaces should be listed.
     // |callback|: The callback to invoke when the interfaces are enumerated.
-    static void listInterfaces(Device device,
+    static void listInterfaces(DeviceHandle device,
         ListInterfacesCallback callback);
 
     // Claims an interface on the specified USB device.
     // |device|: The device on which the interface is to be claimed.
     // |interface|: The interface number to be claimed.
     // |callback|: The callback to invoke once the interface is claimed.
-    static void claimInterface(Device device, long interfaceNumber,
+    static void claimInterface(DeviceHandle device, long interfaceNumber,
         VoidCallback callback);
 
     // Releases a claim to an interface on the provided device.
     // |device|: The device on which the interface is to be released.
     // |interface|: The interface number to be released.
     // |callback|: The callback to invoke once the interface is released.
-    static void releaseInterface(Device device, long interfaceNumber,
+    static void releaseInterface(DeviceHandle device, long interfaceNumber,
         VoidCallback callback);
 
     // Selects an alternate setting on a previously claimed interface on a
@@ -176,7 +196,7 @@ namespace usb {
     // |interface|: The interface number to be set.
     // |alternateSetting|: The alternate setting to set.
     // |callback|: The callback to invoke once the interface setting is set.
-    static void setInterfaceAlternateSetting(Device device,
+    static void setInterfaceAlternateSetting(DeviceHandle device,
         long interfaceNumber, long alternateSetting, VoidCallback callback);
 
     // Performs a control transfer on the specified device. See the
@@ -185,21 +205,21 @@ namespace usb {
     // |device|: An open device to make the transfer on.
     // |transferInfo|: The parameters to the transfer. See ControlTransferInfo.
     // |callback|: Invoked once the transfer has completed.
-    static void controlTransfer(Device device,
+    static void controlTransfer(DeviceHandle device,
         ControlTransferInfo transferInfo, TransferCallback callback);
 
     // Performs a bulk transfer on the specified device.
     // |device|: An open device to make the transfer on.
     // |transferInfo|: The paramters to the transfer. See GenericTransferInfo.
     // |callback|: Invoked once the transfer has completed.
-    static void bulkTransfer(Device device, GenericTransferInfo transferInfo,
+    static void bulkTransfer(DeviceHandle device, GenericTransferInfo transferInfo,
         TransferCallback callback);
 
     // Performs an interrupt transfer on the specified device.
     // |device|: An open device to make the transfer on.
     // |transferInfo|: The paramters to the transfer. See GenericTransferInfo.
     // |callback|: Invoked once the transfer has completed.
-    static void interruptTransfer(Device device,
+    static void interruptTransfer(DeviceHandle device,
         GenericTransferInfo transferInfo, TransferCallback callback);
 
     // Performs an isochronous transfer on the specific device.
@@ -207,7 +227,7 @@ namespace usb {
     // |transferInfo|: The parameters to the transfer. See
     // IsochronousTransferInfo.
     // |callback|: Invoked once the transfer has been completed.
-    static void isochronousTransfer(Device device,
+    static void isochronousTransfer(DeviceHandle device,
         IsochronousTransferInfo transferInfo,
         TransferCallback callback);
 
@@ -220,7 +240,7 @@ namespace usb {
     // |device|: An opened device to reset.
     // |callback|: Invoked once the device is reset with a boolean indicating
     // whether the reset is completed successfully.
-    static void resetDevice(Device device,
+    static void resetDevice(DeviceHandle device,
         ResetDeviceCallback callback);
   };
 };

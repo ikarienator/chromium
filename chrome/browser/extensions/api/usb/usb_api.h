@@ -74,8 +74,26 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
   void OnCompleted();
 
   scoped_ptr<base::ListValue> result_;
-  std::vector<scoped_refptr<UsbDevice> > devices_;
+  std::vector<int> devices_;
   scoped_ptr<extensions::api::usb::FindDevices::Params> parameters_;
+  UsbService* service_;
+};
+
+class UsbOpenDeviceFunction : public UsbAsyncApiFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("usb.openDevice", USB_OPENDEVICE)
+
+  UsbOpenDeviceFunction();
+
+ protected:
+  virtual ~UsbOpenDeviceFunction();
+
+  virtual bool PrePrepare() OVERRIDE;
+  virtual bool Prepare() OVERRIDE;
+  virtual void AsyncWorkStart() OVERRIDE;
+
+ private:
+  scoped_ptr<extensions::api::usb::OpenDevice::Params> parameters_;
   UsbService* service_;
 };
 
@@ -120,8 +138,6 @@ class UsbCloseDeviceFunction : public UsbAsyncApiFunction {
 
   virtual bool Prepare() OVERRIDE;
   virtual void AsyncWorkStart() OVERRIDE;
-
-  void OnCompleted();
 
  private:
   scoped_ptr<extensions::api::usb::CloseDevice::Params> parameters_;
