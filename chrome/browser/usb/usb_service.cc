@@ -4,8 +4,8 @@
 
 #include "chrome/browser/usb/usb_service.h"
 
-#include <vector>
 #include <set>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/bind_helpers.h"
@@ -65,8 +65,8 @@ class UsbEventHandler : public base::PlatformThread::Delegate {
 // count of a single PlatformUsbDevice. This allows us to construct things
 // like vectors of RefCountedPlatformUsbDevices and not worry about having to
 // explicitly unreference them after use.
-class RefCountedPlatformUsbDevice:
-    public base::RefCounted<RefCountedPlatformUsbDevice> {
+class RefCountedPlatformUsbDevice
+    : public base::RefCounted<RefCountedPlatformUsbDevice> {
  public:
   explicit RefCountedPlatformUsbDevice(PlatformUsbDevice device,
                                        int unique_id);
@@ -93,6 +93,9 @@ RefCountedPlatformUsbDevice::RefCountedPlatformUsbDevice(
 
 RefCountedPlatformUsbDevice::~RefCountedPlatformUsbDevice() {
   libusb_unref_device(device_);
+
+  // Device is lost.
+  // Invalidates all the opened handle.
   for (vector<scoped_refptr<UsbDevice> >::iterator it = handles_.begin();
       it != handles_.end();
       ++it) {
@@ -118,7 +121,7 @@ void RefCountedPlatformUsbDevice::CloseDevice(UsbDevice* device) {
   for (vector<scoped_refptr<UsbDevice> >::iterator it = handles_.begin();
         it != handles_.end();
         ++it) {
-    if (it->get() == device){
+    if (it->get() == device) {
       handles_.erase(it);
       return;
     }
@@ -143,6 +146,7 @@ void UsbService::FindDevices(const uint16 vendor_id,
                              const int interface_id,
                              vector<int>* devices,
                              const base::Callback<void()>& callback) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   DCHECK(event_handler_) << "FindDevices called after event handler stopped.";
 #if defined(OS_CHROMEOS)
   // ChromeOS builds on non-ChromeOS machines (dev) should not attempt to
@@ -178,6 +182,7 @@ void UsbService::FindDevicesImpl(const uint16 vendor_id,
                                  vector<int>* devices,
                                  const base::Callback<void()>& callback,
                                  bool success) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   base::ScopedClosureRunner run_callback(callback);
 
   devices->clear();
@@ -198,21 +203,27 @@ void UsbService::FindDevicesImpl(const uint16 vendor_id,
   }
 }
 
-scoped_refptr<UsbDevice> UsbService::OpenDevice(int device) {
+void UsbService::OpenDevice(
+    int device,
+    const base::Callback<void(scoped_refptr<UsbDevice>)>& callback) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   EnumerateDevices();
   for (DeviceMap::iterator it = devices_.begin();
       it != devices_.end(); ++it) {
     if (it->second->unique_id() == device) {
       PlatformUsbDeviceHandle handle;
-      if (0 == libusb_open(it->first, &handle))
-        return new UsbDevice(this, device, handle);
-      return NULL;
+      if (0 == libusb_open(it->first, &handle)) {
+         callback.Run(new UsbDevice(this, device, handle));
+         return;
+      }
+      break;
     }
   }
-  return NULL;
+  callback.Run(NULL);
 }
 
-void UsbService::CloseDevice(UsbDevice* handle) {
+void UsbService::CloseDevice(scoped_refptr<UsbDevice> handle) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   int device = handle->device();
 
   for (DeviceMap::iterator it = devices_.begin();
@@ -225,13 +236,14 @@ void UsbService::CloseDevice(UsbDevice* handle) {
 
 void UsbService::ScheduleEnumerateDevice() {
   BrowserThread::PostDelayedTask(
-      BrowserThread::UI,
+      BrowserThread::FILE,
       FROM_HERE,
       base::Bind(&UsbService::EnumerateDevices, base::Unretained(this)),
       base::TimeDelta::FromSeconds(5));
 }
 
 void UsbService::EnumerateDevices() {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   libusb_device** devices = NULL;
   const ssize_t device_count = libusb_get_device_list(context_, &devices);
   if (device_count < 0)

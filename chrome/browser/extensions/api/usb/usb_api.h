@@ -93,6 +93,9 @@ class UsbOpenDeviceFunction : public UsbAsyncApiFunction {
   virtual void AsyncWorkStart() OVERRIDE;
 
  private:
+  void OnOpened(scoped_refptr<UsbDevice> handle);
+  void OnCompleted(scoped_refptr<UsbDevice> handle);
+
   scoped_ptr<extensions::api::usb::OpenDevice::Params> parameters_;
   UsbService* service_;
 };

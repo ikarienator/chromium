@@ -7,14 +7,15 @@ var usb = chrome.usb;
 function createErrorTest(resultCode, errorMessage) {
   return function() {
     usb.findDevices({vendorId: 0, productId: 0}, function(devices) {
-      var device = devices[0];
-      var transfer = new Object();
-      transfer.direction = "out";
-      transfer.endpoint = 1;
-      transfer.data = new ArrayBuffer(0);
-      usb.bulkTransfer(device, transfer, function (result) {
-        chrome.test.assertTrue(resultCode == result.resultCode);
-        chrome.test.succeed();
+      usb.openDevice(devices[0], function(device) {
+        var transfer = new Object();
+        transfer.direction = "out";
+        transfer.endpoint = 1;
+        transfer.data = new ArrayBuffer(0);
+        usb.bulkTransfer(device, transfer, function (result) {
+          chrome.test.assertTrue(resultCode == result.resultCode);
+          chrome.test.succeed();
+        });
       });
     });
   };

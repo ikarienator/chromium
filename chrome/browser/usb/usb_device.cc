@@ -10,7 +10,10 @@
 #include "base/synchronization/lock.h"
 #include "chrome/browser/usb/usb_interface.h"
 #include "chrome/browser/usb/usb_service.h"
+#include "content/public/browser/browser_thread.h"
 #include "third_party/libusb/src/libusb/libusb.h"
+
+using content::BrowserThread;
 
 namespace {
 
@@ -110,7 +113,7 @@ UsbDevice::Transfer::~Transfer() {}
       callback.Run(args);\
       return; \
     } \
-  } while(0);
+  } while (0);
 
 #define CHECK_DEVICE_RETURN \
   do { \
@@ -118,7 +121,7 @@ UsbDevice::Transfer::~Transfer() {}
       DLOG(INFO) << "Device is disconnected: " << __PRETTY_FUNCTION__; \
       return; \
     } \
-  } while(0);
+  } while (0);
 
 UsbDevice::UsbDevice(UsbService* service,
                                  int device,
@@ -138,7 +141,12 @@ UsbDevice::~UsbDevice() {
 void UsbDevice::Close() {
   if (handle_ == 0)
     return;
-  service_->CloseDevice(this);
+  BrowserThread::PostTask(
+      BrowserThread::FILE,
+      FROM_HERE,
+      base::Bind(&UsbService::CloseDevice,
+                 base::Unretained(service_),
+                 make_scoped_refptr(this)));
 }
 
 void UsbDevice::TransferComplete(PlatformUsbTransferHandle handle) {
@@ -352,13 +360,14 @@ void UsbDevice::IsochronousTransfer(const UsbEndpointDirection direction,
 }
 
 void UsbDevice::ResetDevice(const base::Callback<void(bool)>& callback) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   CHECK_DEVICE(callback, false);
   callback.Run(libusb_reset_device(handle_) == 0);
 }
 
 void UsbDevice::InternalClose() {
-  if (handle_ == 0)
-    return;
+  if (handle_ == NULL)
+      return;
   libusb_close(handle_);
   handle_ = NULL;
 }

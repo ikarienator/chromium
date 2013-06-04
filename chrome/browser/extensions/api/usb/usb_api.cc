@@ -308,7 +308,8 @@ static base::DictionaryValue* CreateTransferInfo(
   return result;
 }
 
-static base::Value* PopulateDevice(int device_id, int vendor_id, int product_id) {
+static base::Value* PopulateDevice(
+    int device_id, int vendor_id, int product_id) {
   Device device;
   device.device = device_id;
   device.vendor_id = vendor_id;
@@ -451,8 +452,13 @@ void UsbFindDevicesFunction::AsyncWorkStart() {
     return;
   }
 
-  service_->FindDevices(vendor_id, product_id, interface_id, &devices_,
-                        base::Bind(&UsbFindDevicesFunction::OnCompleted, this));
+  BrowserThread::PostTask(
+      BrowserThread::FILE,
+      FROM_HERE,
+      base::Bind(&UsbService::FindDevices,
+                 base::Unretained(service_),
+                 vendor_id, product_id, interface_id, &devices_,
+                 base::Bind(&UsbFindDevicesFunction::OnCompleted, this)));
 }
 
 void UsbFindDevicesFunction::OnCompleted() {
@@ -497,12 +503,31 @@ void UsbOpenDeviceFunction::AsyncWorkStart() {
     AsyncWorkCompleted();
     return;
   }
-  scoped_refptr<UsbDevice> handle =
-      service_->OpenDevice(parameters_->device.device);
+  BrowserThread::PostTask(
+      BrowserThread::FILE,
+      FROM_HERE,
+      base::Bind(&UsbService::OpenDevice,
+                 base::Unretained(service_),
+                 parameters_->device.device,
+                 base::Bind(
+                     &UsbOpenDeviceFunction::OnOpened,
+                     this)));
+}
+
+void UsbOpenDeviceFunction::OnOpened(scoped_refptr<UsbDevice> handle) {
   if (!handle.get()) {
     CompleteWithError(kErrorDisconnect);
     return;
   }
+  BrowserThread::PostTask(
+      BrowserThread::IO,
+      FROM_HERE,
+      base::Bind(&UsbOpenDeviceFunction::OnCompleted,
+                 this,
+                 handle));
+}
+
+void UsbOpenDeviceFunction::OnCompleted(scoped_refptr<UsbDevice> handle) {
   UsbDeviceResource* const resource = new UsbDeviceResource(
       extension_->id(),
       handle);

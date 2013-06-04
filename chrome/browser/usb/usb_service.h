@@ -16,7 +16,9 @@
 #include "third_party/libusb/src/libusb/libusb.h"
 
 class UsbEventHandler;
-typedef libusb_context* PlatformUsbContext;
+
+typedef struct libusb_context* PlatformUsbContext;
+typedef struct libusb_device* PlatformUsbDevice;
 
 // The USB service handles creating and managing an event handler thread that is
 // used to manage and dispatch USB events. It is also responsbile for device
@@ -41,9 +43,11 @@ class UsbService : public BrowserContextKeyedService {
                    const base::Callback<void()>& callback);
 
   // Open a device for further communication.
-  scoped_refptr<UsbDevice> OpenDevice(int device);
+  void OpenDevice(
+      int device,
+      const base::Callback<void(scoped_refptr<UsbDevice>)>& callback);
 
-  void CloseDevice(UsbDevice* handle);
+  void CloseDevice(scoped_refptr<UsbDevice> handle);
 
   void ScheduleEnumerateDevice();
 
@@ -69,6 +73,7 @@ class UsbService : public BrowserContextKeyedService {
                        bool success);
 
   // Populates |output| with the result of enumerating all attached USB devices.
+  // Must be called from FILE thread.
   void EnumerateDevices();
 
   // If a UsbDevice wrapper corresponding to |device| has already been created,

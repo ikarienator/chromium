@@ -14,15 +14,9 @@
 #include "net/base/completion_callback.h"
 #include "net/base/io_buffer.h"
 
-struct libusb_device;
-struct libusb_device_handle;
-struct libusb_iso_packet_descriptor;
-struct libusb_transfer;
-
-typedef libusb_device* PlatformUsbDevice;
-typedef libusb_device_handle* PlatformUsbDeviceHandle;
-typedef libusb_iso_packet_descriptor* PlatformUsbIsoPacketDescriptor;
-typedef libusb_transfer* PlatformUsbTransferHandle;
+typedef struct libusb_device_handle* PlatformUsbDeviceHandle;
+typedef struct libusb_iso_packet_descriptor* PlatformUsbIsoPacketDescriptor;
+typedef struct libusb_transfer* PlatformUsbTransferHandle;
 
 class UsbService;
 
@@ -48,7 +42,7 @@ typedef base::Callback<void(bool)> UsbInterfaceCallback;
 // A UsbDevice wraps the platform's underlying representation of what a USB
 // device actually is, and provides accessors for performing many of the
 // standard USB operations.
-class UsbDevice : public base::RefCounted<UsbDevice> {
+class UsbDevice : public base::RefCountedThreadSafe<UsbDevice> {
  public:
   enum TransferRequestType { STANDARD, CLASS, VENDOR, RESERVED };
   enum TransferRecipient { DEVICE, INTERFACE, ENDPOINT, OTHER };
@@ -124,7 +118,7 @@ class UsbDevice : public base::RefCounted<UsbDevice> {
   // This constructor variant is for use in testing only.
   UsbDevice();
 
-  friend class base::RefCounted<UsbDevice>;
+  friend class base::RefCountedThreadSafe<UsbDevice>;
   virtual ~UsbDevice();
 
  private:
