@@ -356,14 +356,23 @@ UsbDeviceResource* UsbAsyncApiFunction::GetUsbDeviceResource(
     int api_resource_id) {
   UsbDeviceResource* resource =
       manager_->Get(extension_->id(), api_resource_id);
+
+  if (resource == NULL)
+    return NULL;
+
+  if (device_for_test_) {
+    return resource;
+  }
+
   // TODO(ikarienator): Instead of doing this check and release the object
   // lazily, find a way to inform the ApiResourceManager from the resource that
   // a it is closed.
-  if (resource != NULL && resource->device()->handle() == NULL) {
+  if (resource->device()->handle() == NULL) {
     // If the device handle is closed, then remove the resource.
     manager_->Remove(extension_->id(), api_resource_id);
     return NULL;
   }
+
   return resource;
 }
 
