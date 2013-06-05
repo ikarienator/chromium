@@ -18,8 +18,6 @@ typedef const libusb_endpoint_descriptor* PlatformUsbEndpointDescriptor;
 typedef const libusb_interface* PlatformUsbInterface;
 typedef const libusb_interface_descriptor* PlatformUsbInterfaceDescriptor;
 
-class UsbDeviceHandle;
-
 enum UsbTransferType {
   USB_TRANSFER_CONTROL = 0,
   USB_TRANSFER_ISOCHRONOUS,

@@ -26,7 +26,7 @@ function set(name, message, stack, targetChrome) {
   var errorMessage = name + ': ' + message;
   if (stack != null && stack != '')
     errorMessage += '\n' + stack;
-  // console.error(errorMessage);
+  console.error(errorMessage);
 
   var errorObject = { message: message };
   if (GetAvailability('extension').is_available)

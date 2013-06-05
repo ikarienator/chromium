@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef CHROME_BROWSER_USB_USB_DEVICE_H_
-#define CHROME_BROWSER_USB_USB_DEVICE_H_
+#ifndef CHROME_BROWSER_USB_USB_DEVICE_HANDLE_H_
+#define CHROME_BROWSER_USB_USB_DEVICE_HANDLE_H_
 
 #include <map>
 #include <vector>
@@ -42,7 +42,7 @@ typedef base::Callback<void(bool)> UsbInterfaceCallback;
 // A UsbDevice wraps the platform's underlying representation of what a USB
 // device actually is, and provides accessors for performing many of the
 // standard USB operations.
-class UsbDevice : public base::RefCountedThreadSafe<UsbDevice> {
+class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
  public:
   enum TransferRequestType { STANDARD, CLASS, VENDOR, RESERVED };
   enum TransferRecipient { DEVICE, INTERFACE, ENDPOINT, OTHER };
@@ -50,13 +50,15 @@ class UsbDevice : public base::RefCountedThreadSafe<UsbDevice> {
   // Usually you will not want to directly create a UsbDevice, favoring to let
   // the UsbService take care of the logistics of getting a platform device
   // handle and handling events for it.
-  UsbDevice(UsbService* service, int device, PlatformUsbDeviceHandle handle);
+  UsbDeviceHandle(UsbService* service, int device,
+                  PlatformUsbDeviceHandle handle);
 
   PlatformUsbDeviceHandle handle() { return handle_; }
   int device() { return device_; }
 
-  // Close the USB device and release the underlying platform device.
-  virtual void Close();
+  // Close the USB device and release the underlying platform device. |callback|
+  // is invoked after the device has been closed.
+  virtual void Close(const base::Callback<void()>& callback);
 
   virtual void ListInterfaces(UsbConfigDescriptor* config,
                               const UsbInterfaceCallback& callback);
@@ -116,10 +118,10 @@ class UsbDevice : public base::RefCountedThreadSafe<UsbDevice> {
 
  protected:
   // This constructor variant is for use in testing only.
-  UsbDevice();
+  UsbDeviceHandle();
 
-  friend class base::RefCountedThreadSafe<UsbDevice>;
-  virtual ~UsbDevice();
+  friend class base::RefCountedThreadSafe<UsbDeviceHandle>;
+  virtual ~UsbDeviceHandle();
 
  private:
   struct Transfer {
@@ -132,8 +134,9 @@ class UsbDevice : public base::RefCountedThreadSafe<UsbDevice> {
     UsbTransferCallback callback;
   };
 
-  friend class RefCountedPlatformUsbDevice;
+  friend class UsbDevice;
 
+  // This only called from UsbDevice, thus always from FILE thread.
   void InternalClose();
 
   // Submits a transfer and starts tracking it. Retains the buffer and copies
@@ -159,7 +162,7 @@ class UsbDevice : public base::RefCountedThreadSafe<UsbDevice> {
   base::Lock lock_;
   std::map<PlatformUsbTransferHandle, Transfer> transfers_;
 
-  DISALLOW_COPY_AND_ASSIGN(UsbDevice);
+  DISALLOW_COPY_AND_ASSIGN(UsbDeviceHandle);
 };
 
-#endif  // CHROME_BROWSER_USB_USB_DEVICE_H_
+#endif  // CHROME_BROWSER_USB_USB_DEVICE_HANDLE_H_

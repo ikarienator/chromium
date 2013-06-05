@@ -10,11 +10,9 @@
 #include "base/memory/ref_counted.h"
 #include "chrome/browser/extensions/api/api_function.h"
 #include "chrome/browser/extensions/api/api_resource_manager.h"
-#include "chrome/browser/usb/usb_device.h"
+#include "chrome/browser/usb/usb_device_handle.h"
 #include "chrome/common/extensions/api/usb.h"
 #include "net/base/io_buffer.h"
-
-class UsbDevice;
 
 namespace extensions {
 
@@ -46,9 +44,9 @@ class UsbAsyncApiTransferFunction : public UsbAsyncApiFunction {
   bool ConvertDirectionSafely(const extensions::api::usb::Direction& input,
                               UsbEndpointDirection* output);
   bool ConvertRequestTypeSafely(const extensions::api::usb::RequestType& input,
-                              UsbDevice::TransferRequestType* output);
+                              UsbDeviceHandle::TransferRequestType* output);
   bool ConvertRecipientSafely(const extensions::api::usb::Recipient& input,
-                              UsbDevice::TransferRecipient* output);
+                              UsbDeviceHandle::TransferRecipient* output);
 
   void OnCompleted(UsbTransferStatus status,
                    scoped_refptr<net::IOBuffer> data,
@@ -61,7 +59,7 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
 
   UsbFindDevicesFunction();
 
-  static void SetDeviceForTest(UsbDevice* device);
+  static void SetDeviceForTest(UsbDeviceHandle* device);
 
  protected:
   virtual ~UsbFindDevicesFunction();
@@ -93,8 +91,8 @@ class UsbOpenDeviceFunction : public UsbAsyncApiFunction {
   virtual void AsyncWorkStart() OVERRIDE;
 
  private:
-  void OnOpened(scoped_refptr<UsbDevice> handle);
-  void OnCompleted(scoped_refptr<UsbDevice> handle);
+  void OnOpened(scoped_refptr<UsbDeviceHandle> handle);
+  void OnCompleted(scoped_refptr<UsbDeviceHandle> handle);
 
   scoped_ptr<extensions::api::usb::OpenDevice::Params> parameters_;
   UsbService* service_;
@@ -143,6 +141,8 @@ class UsbCloseDeviceFunction : public UsbAsyncApiFunction {
   virtual void AsyncWorkStart() OVERRIDE;
 
  private:
+  void OnCompleted();
+
   scoped_ptr<extensions::api::usb::CloseDevice::Params> parameters_;
 };
 

@@ -91,7 +91,7 @@ static const size_t kMaxTransferLength = 100 * 1024 * 1024;
 static const int kMaxPackets = 4 * 1024 * 1024;
 static const int kMaxPacketLength = 64 * 1024;
 
-static UsbDevice* device_for_test_ = NULL;
+static UsbDeviceHandle* device_for_test_ = NULL;
 
 static bool ConvertDirectionToApi(const UsbEndpointDirection& input,
                                   Direction* output) {
@@ -186,19 +186,19 @@ static bool ConvertDirection(const Direction& input,
 }
 
 static bool ConvertRequestType(const RequestType& input,
-                               UsbDevice::TransferRequestType* output) {
+                               UsbDeviceHandle::TransferRequestType* output) {
   switch (input) {
     case usb::REQUEST_TYPE_STANDARD:
-      *output = UsbDevice::STANDARD;
+      *output = UsbDeviceHandle::STANDARD;
       return true;
     case usb::REQUEST_TYPE_CLASS:
-      *output = UsbDevice::CLASS;
+      *output = UsbDeviceHandle::CLASS;
       return true;
     case usb::REQUEST_TYPE_VENDOR:
-      *output = UsbDevice::VENDOR;
+      *output = UsbDeviceHandle::VENDOR;
       return true;
     case usb::REQUEST_TYPE_RESERVED:
-      *output = UsbDevice::RESERVED;
+      *output = UsbDeviceHandle::RESERVED;
       return true;
     default:
       NOTREACHED();
@@ -207,19 +207,19 @@ static bool ConvertRequestType(const RequestType& input,
 }
 
 static bool ConvertRecipient(const Recipient& input,
-                             UsbDevice::TransferRecipient* output) {
+                             UsbDeviceHandle::TransferRecipient* output) {
   switch (input) {
     case usb::RECIPIENT_DEVICE:
-      *output = UsbDevice::DEVICE;
+      *output = UsbDeviceHandle::DEVICE;
       return true;
     case usb::RECIPIENT_INTERFACE:
-      *output = UsbDevice::INTERFACE;
+      *output = UsbDeviceHandle::INTERFACE;
       return true;
     case usb::RECIPIENT_ENDPOINT:
-      *output = UsbDevice::ENDPOINT;
+      *output = UsbDeviceHandle::ENDPOINT;
       return true;
     case usb::RECIPIENT_OTHER:
-      *output = UsbDevice::OTHER;
+      *output = UsbDeviceHandle::OTHER;
       return true;
     default:
       NOTREACHED();
@@ -301,10 +301,11 @@ static base::DictionaryValue* CreateTransferInfo(
     size_t length) {
   base::DictionaryValue* result = new base::DictionaryValue();
   result->SetInteger(kResultCodeKey, status);
-  if (data.get())
-    result->Set(kDataKey,
-                base::BinaryValue::CreateWithCopiedBuffer(data->data(),
-                                                          length));
+  if (data.get()) {
+    result->Set(
+        kDataKey,
+        base::BinaryValue::CreateWithCopiedBuffer(data->data(), length));
+  }
   return result;
 }
 
@@ -353,7 +354,17 @@ bool UsbAsyncApiFunction::Respond() {
 
 UsbDeviceResource* UsbAsyncApiFunction::GetUsbDeviceResource(
     int api_resource_id) {
-  return manager_->Get(extension_->id(), api_resource_id);
+  UsbDeviceResource* resource =
+      manager_->Get(extension_->id(), api_resource_id);
+  // TODO(ikarienator): Instead of doing this check and release the object
+  // lazily, find a way to inform the ApiResourceManager from the resource that
+  // a it is closed.
+  if (resource != NULL && resource->device()->handle() == NULL) {
+    // If the device handle is closed, then remove the resource.
+    manager_->Remove(extension_->id(), api_resource_id);
+    return NULL;
+  }
+  return resource;
 }
 
 void UsbAsyncApiFunction::RemoveUsbDeviceResource(int api_resource_id) {
@@ -388,7 +399,7 @@ bool UsbAsyncApiTransferFunction::ConvertDirectionSafely(
 }
 
 bool UsbAsyncApiTransferFunction::ConvertRequestTypeSafely(
-    const RequestType& input, UsbDevice::TransferRequestType* output) {
+    const RequestType& input, UsbDeviceHandle::TransferRequestType* output) {
   const bool converted = ConvertRequestType(input, output);
   if (!converted)
     SetError(kErrorConvertRequestType);
@@ -396,7 +407,7 @@ bool UsbAsyncApiTransferFunction::ConvertRequestTypeSafely(
 }
 
 bool UsbAsyncApiTransferFunction::ConvertRecipientSafely(
-    const Recipient& input, UsbDevice::TransferRecipient* output) {
+    const Recipient& input, UsbDeviceHandle::TransferRecipient* output) {
   const bool converted = ConvertRecipient(input, output);
   if (!converted)
     SetError(kErrorConvertRecipient);
@@ -408,7 +419,7 @@ UsbFindDevicesFunction::UsbFindDevicesFunction()
 
 UsbFindDevicesFunction::~UsbFindDevicesFunction() {}
 
-void UsbFindDevicesFunction::SetDeviceForTest(UsbDevice* device) {
+void UsbFindDevicesFunction::SetDeviceForTest(UsbDeviceHandle* device) {
   device_for_test_ = device;
 }
 
@@ -514,7 +525,7 @@ void UsbOpenDeviceFunction::AsyncWorkStart() {
                      this)));
 }
 
-void UsbOpenDeviceFunction::OnOpened(scoped_refptr<UsbDevice> handle) {
+void UsbOpenDeviceFunction::OnOpened(scoped_refptr<UsbDeviceHandle> handle) {
   if (!handle.get()) {
     CompleteWithError(kErrorDisconnect);
     return;
@@ -527,7 +538,7 @@ void UsbOpenDeviceFunction::OnOpened(scoped_refptr<UsbDevice> handle) {
                  handle));
 }
 
-void UsbOpenDeviceFunction::OnCompleted(scoped_refptr<UsbDevice> handle) {
+void UsbOpenDeviceFunction::OnCompleted(scoped_refptr<UsbDeviceHandle> handle) {
   UsbDeviceResource* const resource = new UsbDeviceResource(
       extension_->id(),
       handle);
@@ -550,7 +561,7 @@ bool UsbListInterfacesFunction::Prepare() {
 
 void UsbListInterfacesFunction::AsyncWorkStart() {
   UsbDeviceResource* const resource = GetUsbDeviceResource(
-      parameters_->device.handle);
+      parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
@@ -675,14 +686,18 @@ bool UsbCloseDeviceFunction::Prepare() {
 
 void UsbCloseDeviceFunction::AsyncWorkStart() {
   UsbDeviceResource* const resource = GetUsbDeviceResource(
-      parameters_->device.handle);
+      parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
   }
 
-  resource->device()->Close();
-  RemoveUsbDeviceResource(parameters_->device.handle);
+  resource->device()->Close(
+      base::Bind(&UsbCloseDeviceFunction::OnCompleted, this));
+  RemoveUsbDeviceResource(parameters_->handle.handle);
+}
+
+void UsbCloseDeviceFunction::OnCompleted() {
   AsyncWorkCompleted();
 }
 
@@ -698,7 +713,7 @@ bool UsbClaimInterfaceFunction::Prepare() {
 
 void UsbClaimInterfaceFunction::AsyncWorkStart() {
   UsbDeviceResource* resource =
-      GetUsbDeviceResource(parameters_->device.handle);
+      GetUsbDeviceResource(parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
@@ -726,7 +741,7 @@ bool UsbReleaseInterfaceFunction::Prepare() {
 
 void UsbReleaseInterfaceFunction::AsyncWorkStart() {
   UsbDeviceResource* resource =
-      GetUsbDeviceResource(parameters_->device.handle);
+      GetUsbDeviceResource(parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
@@ -756,7 +771,7 @@ bool UsbSetInterfaceAlternateSettingFunction::Prepare() {
 
 void UsbSetInterfaceAlternateSettingFunction::AsyncWorkStart() {
   UsbDeviceResource* resource =
-      GetUsbDeviceResource(parameters_->device.handle);
+      GetUsbDeviceResource(parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
@@ -786,7 +801,7 @@ bool UsbControlTransferFunction::Prepare() {
 
 void UsbControlTransferFunction::AsyncWorkStart() {
   UsbDeviceResource* const resource = GetUsbDeviceResource(
-      parameters_->device.handle);
+      parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
@@ -795,8 +810,8 @@ void UsbControlTransferFunction::AsyncWorkStart() {
   const ControlTransferInfo& transfer = parameters_->transfer_info;
 
   UsbEndpointDirection direction;
-  UsbDevice::TransferRequestType request_type;
-  UsbDevice::TransferRecipient recipient;
+  UsbDeviceHandle::TransferRequestType request_type;
+  UsbDeviceHandle::TransferRecipient recipient;
   size_t size = 0;
 
   if (!ConvertDirectionSafely(transfer.direction, &direction) ||
@@ -843,7 +858,7 @@ bool UsbBulkTransferFunction::Prepare() {
 
 void UsbBulkTransferFunction::AsyncWorkStart() {
   UsbDeviceResource* const resource = GetUsbDeviceResource(
-      parameters_->device.handle);
+      parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
@@ -892,7 +907,7 @@ bool UsbInterruptTransferFunction::Prepare() {
 
 void UsbInterruptTransferFunction::AsyncWorkStart() {
   UsbDeviceResource* const resource = GetUsbDeviceResource(
-      parameters_->device.handle);
+      parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
@@ -941,7 +956,7 @@ bool UsbIsochronousTransferFunction::Prepare() {
 
 void UsbIsochronousTransferFunction::AsyncWorkStart() {
   UsbDeviceResource* const resource = GetUsbDeviceResource(
-      parameters_->device.handle);
+      parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
@@ -1008,7 +1023,7 @@ bool UsbResetDeviceFunction::Prepare() {
 
 void UsbResetDeviceFunction::AsyncWorkStart() {
   UsbDeviceResource* const resource = GetUsbDeviceResource(
-      parameters_->device.handle);
+      parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
     return;
@@ -1037,15 +1052,15 @@ void UsbResetDeviceFunction::OnCompleted(bool success) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::IO));
   if (!success) {
     UsbDeviceResource* const resource = GetUsbDeviceResource(
-        parameters_->device.handle);
+        parameters_->handle.handle);
     if (!resource) {
       CompleteWithError(kErrorNoDevice);
       return;
     }
     // Close the device now because the handle is invalid after an
     // unsuccessful reset.
-    resource->device()->Close();
-    OnError();
+    resource->device()->Close(
+        base::Bind(&UsbResetDeviceFunction::OnError, this));
     return;
   }
   SetResult(Value::CreateBooleanValue(true));
@@ -1053,7 +1068,7 @@ void UsbResetDeviceFunction::OnCompleted(bool success) {
 }
 
 void UsbResetDeviceFunction::OnError() {
-  RemoveUsbDeviceResource(parameters_->device.handle);
+  RemoveUsbDeviceResource(parameters_->handle.handle);
   SetError(kErrorResetDevice);
   SetResult(Value::CreateBooleanValue(false));
   AsyncWorkCompleted();
