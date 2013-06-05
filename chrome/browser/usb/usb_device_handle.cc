@@ -160,7 +160,7 @@ void UsbDeviceHandle::TransferComplete(PlatformUsbTransferHandle handle) {
   }
 
   CHECK_DEVICE(transfer.callback,
-               UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+               USB_TRANSFER_DISCONNECT,
                scoped_refptr<net::IOBuffer>(), 0);
 
   if (handle->status != LIBUSB_TRANSFER_COMPLETED &&
@@ -287,7 +287,7 @@ void UsbDeviceHandle::ControlTransfer(const UsbEndpointDirection direction,
     const uint8 request, const uint16 value, const uint16 index,
     net::IOBuffer* buffer, const size_t length, const unsigned int timeout,
     const UsbTransferCallback& callback) {
-  CHECK_DEVICE(callback, UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+  CHECK_DEVICE(callback, USB_TRANSFER_DISCONNECT,
                scoped_refptr<net::IOBuffer>(), 0);
 
   const size_t resized_length = LIBUSB_CONTROL_SETUP_SIZE + length;
@@ -313,7 +313,7 @@ void UsbDeviceHandle::ControlTransfer(const UsbEndpointDirection direction,
 void UsbDeviceHandle::BulkTransfer(const UsbEndpointDirection direction,
     const uint8 endpoint, net::IOBuffer* buffer, const size_t length,
     const unsigned int timeout, const UsbTransferCallback& callback) {
-  CHECK_DEVICE(callback, UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+  CHECK_DEVICE(callback, USB_TRANSFER_DISCONNECT,
                scoped_refptr<net::IOBuffer>(), 0);
 
   struct libusb_transfer* const transfer = libusb_alloc_transfer(0);
@@ -327,7 +327,7 @@ void UsbDeviceHandle::BulkTransfer(const UsbEndpointDirection direction,
 void UsbDeviceHandle::InterruptTransfer(const UsbEndpointDirection direction,
     const uint8 endpoint, net::IOBuffer* buffer, const size_t length,
     const unsigned int timeout, const UsbTransferCallback& callback) {
-  CHECK_DEVICE(callback, UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+  CHECK_DEVICE(callback, USB_TRANSFER_DISCONNECT,
                scoped_refptr<net::IOBuffer>(), 0);
 
   struct libusb_transfer* const transfer = libusb_alloc_transfer(0);
@@ -342,7 +342,7 @@ void UsbDeviceHandle::IsochronousTransfer(const UsbEndpointDirection direction,
     const uint8 endpoint, net::IOBuffer* buffer, const size_t length,
     const unsigned int packets, const unsigned int packet_length,
     const unsigned int timeout, const UsbTransferCallback& callback) {
-  CHECK_DEVICE(callback, UsbTransferStatus::USB_TRANSFER_DISCONNECT,
+  CHECK_DEVICE(callback, USB_TRANSFER_DISCONNECT,
                scoped_refptr<net::IOBuffer>(), 0);
 
   const uint64 total_length = packets * packet_length;
