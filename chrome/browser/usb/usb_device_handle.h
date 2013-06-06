@@ -154,12 +154,20 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   // have outlived its originating UsbService.
   UsbService* const service_;
   int const device_;
+
+  // Lock the handle for the race condition of InternalClose and
+  // TransferComplete.
+  base::Lock handle_lock_;
   PlatformUsbDeviceHandle handle_;
 
   // transfers_ tracks all in-flight transfers associated with this device,
   // allowing the device to retain the buffer and callback associated with a
-  // transfer until such time that it completes. It is protected by lock_.
-  base::Lock lock_;
+  // transfer until such time that it completes. It is protected by
+  // transfer_lock_.
+  //
+  // If both locks are used, the locking order must be first handle_lock_, then
+  // transfer_lock_.
+  base::Lock transfer_lock_;
   std::map<PlatformUsbTransferHandle, Transfer> transfers_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbDeviceHandle);

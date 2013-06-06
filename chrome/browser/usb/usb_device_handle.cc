@@ -18,19 +18,19 @@ using content::BrowserThread;
 #define CHECK_DEVICE(callback, args...) \
   do { \
     if (handle_ == NULL) { \
-      DLOG(INFO) << "Device is disconnected: " << __PRETTY_FUNCTION__; \
+      DVLOG(1) << "Device is disconnected: "; \
       callback.Run(args);\
       return; \
     } \
-  } while (0);
+  } while (0)
 
 #define CHECK_DEVICE_RETURN \
   do { \
     if (handle_ == NULL) { \
-      DLOG(INFO) << "Device is disconnected: " << __PRETTY_FUNCTION__; \
+      DVLOG(1) << "Device is disconnected: "; \
       return; \
     } \
-  } while (0);
+  } while (0)
 
 namespace {
 
@@ -108,10 +108,13 @@ static UsbTransferStatus ConvertTransferStatus(
   }
 }
 
+// This function dispatches a completed transfer to its handle.
+// It is called from UsbEventDispatcher using libusb_handle_events_timeout.
 static void LIBUSB_CALL HandleTransferCompletion(
     struct libusb_transfer* transfer) {
   UsbDeviceHandle* const device =
       reinterpret_cast<UsbDeviceHandle*>(transfer->user_data);
+
   device->TransferComplete(transfer);
   libusb_free_transfer(transfer);
 }
@@ -151,10 +154,16 @@ void UsbDeviceHandle::Close(const base::Callback<void()>& callback) {
 }
 
 void UsbDeviceHandle::TransferComplete(PlatformUsbTransferHandle handle) {
-  DCHECK(ContainsKey(transfers_, handle)) << "Missing transfer completed";
   Transfer transfer;
+  base::AutoLock handle_guard(handle_lock_);
+  // If handle->user_data is cleared after we obtained it, the handles will be
+  // removed and callbacks is already called in InternalClose. This case we can
+  // simply return.
+  if (handle->user_data == NULL)
+    return;
+
   {
-    base::AutoLock guard(lock_);
+    base::AutoLock guard(transfer_lock_);
     transfer = transfers_[handle];
     transfers_.erase(handle);
   }
@@ -367,8 +376,19 @@ void UsbDeviceHandle::ResetDevice(const base::Callback<void(bool)>& callback) {
 }
 
 void UsbDeviceHandle::InternalClose() {
+  base::AutoLock handle_guard(handle_lock_);
+  base::AutoLock guard(transfer_lock_);
   if (handle_ == NULL)
-      return;
+    return;
+
+  // Cancel all the transfers.
+  for (std::map<PlatformUsbTransferHandle, Transfer>::iterator it
+      = transfers_.begin(); it != transfers_.end(); it++) {
+    it->first->user_data = NULL;
+    it->second.callback.Run(USB_TRANSFER_DISCONNECT,
+                            scoped_refptr<net::IOBuffer>(), 0);
+  }
+  transfers_.clear();
   libusb_close(handle_);
   handle_ = NULL;
 }
@@ -378,15 +398,17 @@ void UsbDeviceHandle::SubmitTransfer(PlatformUsbTransferHandle handle,
                                      net::IOBuffer* buffer,
                                      const size_t length,
                                      const UsbTransferCallback& callback) {
+  base::AutoLock lock(transfer_lock_);
+  // This check must be done after the lock.
+  if (!handle_)
+    return;
+
   Transfer transfer;
   transfer.transfer_type = transfer_type;
   transfer.buffer = buffer;
   transfer.length = length;
   transfer.callback = callback;
 
-  {
-    base::AutoLock lock(lock_);
-    transfers_[handle] = transfer;
-    libusb_submit_transfer(handle);
-  }
+  transfers_[handle] = transfer;
+  libusb_submit_transfer(handle);
 }

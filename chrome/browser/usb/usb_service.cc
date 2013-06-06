@@ -31,33 +31,35 @@ using content::BrowserThread;
 class UsbEventDispatcher : public base::PlatformThread::Delegate {
  public:
   explicit UsbEventDispatcher(PlatformUsbContext context)
-      : running_(true), context_(context) {
-    base::PlatformThread::CreateNonJoinable(0, this);
+      : running_(true), context_(context), thread_handle_(0) {
+    base::PlatformThread::Create(0, this, &thread_handle_);
   }
 
   virtual ~UsbEventDispatcher() {}
 
   virtual void ThreadMain() OVERRIDE {
     base::PlatformThread::SetName("UsbEventDispatcher");
-
-    DLOG(INFO) << "UsbEventDispatcher started.";
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    DVLOG(1) << "UsbEventDispatcher started.";
     while (running_) {
-      libusb_handle_events(context_);
+      libusb_handle_events_timeout(context_, &tv);
     }
-    DLOG(INFO) << "UsbEventDispatcher shutting down.";
-    libusb_exit(context_);
+    DVLOG(1) << "UsbEventDispatcher shutting down.";
 
     delete this;
   }
 
   void Stop() {
     running_ = false;
+    base::PlatformThread::Join(thread_handle_);
   }
 
  private:
   bool running_;
   PlatformUsbContext context_;
-
+  base::PlatformThreadHandle thread_handle_;
   DISALLOW_COPY_AND_ASSIGN(UsbEventDispatcher);
 };
 
@@ -132,14 +134,15 @@ void UsbDevice::CloseDeviceHandle(UsbDeviceHandle* device) {
 UsbService::UsbService()
     : next_unique_id_(1) {
   libusb_init(&context_);
-  event_handler_ = new UsbEventDispatcher(context_);
+  event_dispatcher_ = new UsbEventDispatcher(context_);
 }
 
 UsbService::~UsbService() {}
 
-void UsbService::Cleanup() {
-  event_handler_->Stop();
-  event_handler_ = NULL;
+void UsbService::Shutdown() {
+  event_dispatcher_->Stop();
+  devices_.clear();
+  libusb_exit(context_);
 }
 
 void UsbService::FindDevices(const uint16 vendor_id,
@@ -148,7 +151,8 @@ void UsbService::FindDevices(const uint16 vendor_id,
                              vector<int>* devices,
                              const base::Callback<void()>& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
-  DCHECK(event_handler_) << "FindDevices called after event handler stopped.";
+  DCHECK(event_dispatcher_)
+      << "FindDevices called after event handler stopped.";
 #if defined(OS_CHROMEOS)
   // ChromeOS builds on non-ChromeOS machines (dev) should not attempt to
   // use permission broker.
@@ -168,6 +172,7 @@ void UsbService::FindDevices(const uint16 vendor_id,
                                         base::Unretained(this),
                                         vendor_id,
                                         product_id,
+                                        interface_id,
                                         devices,
                                         callback));
   } else {
@@ -212,12 +217,8 @@ void UsbService::OpenDevice(
   for (DeviceMap::iterator it = devices_.begin();
       it != devices_.end(); ++it) {
     if (it->second->unique_id() == device) {
-      PlatformUsbDeviceHandle handle;
-      if (0 == libusb_open(it->first, &handle)) {
-         callback.Run(new UsbDeviceHandle(this, device, handle));
-         return;
-      }
-      break;
+      callback.Run(it->second->OpenDevice(this));
+      return;
     }
   }
   callback.Run(NULL);
@@ -239,7 +240,7 @@ void UsbService::CloseDeviceHandle(scoped_refptr<UsbDeviceHandle> device,
 }
 
 void UsbService::ScheduleEnumerateDevice() {
-  // TODO(ikarienator): Throttle the schedule.
+  // TODO(ikarienator): Throttle it.
   BrowserThread::PostTask(
       BrowserThread::FILE,
       FROM_HERE,

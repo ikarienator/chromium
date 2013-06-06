@@ -32,7 +32,7 @@ class UsbService : public BrowserContextKeyedService {
 
   // Cleanup must be invoked before the service is destroyed. It interrupts the
   // event handling thread and disposes of open devices.
-  void Cleanup();
+  virtual void Shutdown() OVERRIDE;
 
   // Find all of the devices attached to the system that are identified by
   // |vendor_id| and |product_id|, inserting them into |devices|. Clears
@@ -82,7 +82,7 @@ class UsbService : public BrowserContextKeyedService {
   int LookupOrCreateDevice(PlatformUsbDevice device);
 
   PlatformUsbContext context_;
-  UsbEventDispatcher* event_handler_;
+  UsbEventDispatcher* event_dispatcher_;
   int next_unique_id_;
 
   // The devices_ map contains scoped_refptrs to all connected devices.
