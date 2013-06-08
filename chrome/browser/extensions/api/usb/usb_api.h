@@ -53,28 +53,52 @@ class UsbAsyncApiTransferFunction : public UsbAsyncApiFunction {
                    size_t length);
 };
 
-class UsbFindDevicesFunction : public UsbAsyncApiFunction {
+class UsbGetDevicesFunction : public UsbAsyncApiFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("usb.findDevices", USB_FINDDEVICES)
+  DECLARE_EXTENSION_FUNCTION("usb.getDevices", USB_GETDEVICES)
 
-  UsbFindDevicesFunction();
+  UsbGetDevicesFunction();
 
   static void SetDeviceForTest(UsbDeviceHandle* device);
 
  protected:
-  virtual ~UsbFindDevicesFunction();
+  virtual ~UsbGetDevicesFunction();
 
   virtual bool PrePrepare() OVERRIDE;
   virtual bool Prepare() OVERRIDE;
   virtual void AsyncWorkStart() OVERRIDE;
 
- private:
-  void OnCompleted();
+  // Called on FILE thread.
+  void OnDevicesFound();
+  virtual void OnCompleted();
 
   scoped_ptr<base::ListValue> result_;
   std::vector<int> devices_;
-  scoped_ptr<extensions::api::usb::FindDevices::Params> parameters_;
+  int vendor_id_;
+  int product_id_;
+  int interface_id_;
   UsbService* service_;
+};
+
+class UsbFindDevicesFunction : public UsbGetDevicesFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("usb.findDevices", USB_FINDDEVICES)
+
+  UsbFindDevicesFunction();
+
+
+ protected:
+  virtual ~UsbFindDevicesFunction();
+
+  virtual bool Prepare() OVERRIDE;
+
+  // Called on FILE thread.
+  virtual void OnCompleted() OVERRIDE;
+
+  // Called on IO thread.
+  void OpenDevices();
+
+  std::vector<scoped_refptr<UsbDeviceHandle> > handles_;
 };
 
 class UsbOpenDeviceFunction : public UsbAsyncApiFunction {
@@ -91,7 +115,7 @@ class UsbOpenDeviceFunction : public UsbAsyncApiFunction {
   virtual void AsyncWorkStart() OVERRIDE;
 
  private:
-  void OnOpened(scoped_refptr<UsbDeviceHandle> handle);
+  void OpenDevice();
   void OnCompleted(scoped_refptr<UsbDeviceHandle> handle);
 
   scoped_ptr<extensions::api::usb::OpenDevice::Params> parameters_;

@@ -71,9 +71,13 @@ class UsbEventDispatcher : public base::PlatformThread::Delegate {
 class UsbDevice : public base::RefCounted<UsbDevice> {
  public:
   explicit UsbDevice(PlatformUsbDevice device,
-                     int unique_id);
+                     const int unique_id,
+                     const uint16 vendor_id,
+                     const uint16 product_id);
   PlatformUsbDevice device() const { return device_; }
   int unique_id() const { return unique_id_; }
+  int vendor_id() const { return vendor_id_; }
+  int product_id() const { return product_id_; }
 
   scoped_refptr<UsbDeviceHandle> OpenDevice(UsbService* service);
   void CloseDeviceHandle(UsbDeviceHandle* device);
@@ -83,14 +87,22 @@ class UsbDevice : public base::RefCounted<UsbDevice> {
   friend class base::RefCounted<UsbDevice>;
   std::vector<scoped_refptr<UsbDeviceHandle> > handles_;
   PlatformUsbDevice device_;
-  const int unique_id_;
+  const uint16 unique_id_;
+  const uint16 vendor_id_;
+  const int product_id_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbDevice);
 };
 
 UsbDevice::UsbDevice(
     PlatformUsbDevice device,
-    int unique_id) : device_(device), unique_id_(unique_id) {
+    const int unique_id,
+    const uint16 vendor_id,
+    const uint16 product_id)
+    : device_(device),
+      unique_id_(unique_id),
+      vendor_id_(vendor_id),
+      product_id_(product_id) {
   libusb_ref_device(device_);
 }
 
@@ -112,7 +124,9 @@ UsbDevice::OpenDevice(UsbService* service) {
   PlatformUsbDeviceHandle handle;
   if (0 == libusb_open(device_, &handle)) {
     scoped_refptr<UsbDeviceHandle> wrapper =
-        make_scoped_refptr(new UsbDeviceHandle(service, unique_id_, handle));
+        make_scoped_refptr(
+            new UsbDeviceHandle(
+                service, unique_id_, vendor_id_, product_id_, handle));
     handles_.push_back(wrapper);
     return wrapper;
   }
@@ -203,29 +217,25 @@ void UsbService::FindDevicesImpl(const uint16 vendor_id,
 
   for (DeviceMap::iterator it = devices_.begin();
       it != devices_.end(); ++it) {
-    if (DeviceMatches(it->first, vendor_id, product_id)) {
+    if (DeviceMatches(it->second, vendor_id, product_id)) {
       devices->push_back(it->second->unique_id());
     }
   }
 }
 
-void UsbService::OpenDevice(
-    int device,
-    const base::Callback<void(scoped_refptr<UsbDeviceHandle>)>& callback) {
+scoped_refptr<UsbDeviceHandle> UsbService::OpenDevice(int device) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   EnumerateDevices();
   for (DeviceMap::iterator it = devices_.begin();
       it != devices_.end(); ++it) {
     if (it->second->unique_id() == device) {
-      callback.Run(it->second->OpenDevice(this));
-      return;
+      return it->second->OpenDevice(this);
     }
   }
-  callback.Run(NULL);
+  return NULL;
 }
 
-void UsbService::CloseDeviceHandle(scoped_refptr<UsbDeviceHandle> device,
-                             const base::Callback<void()>& callback) {
+void UsbService::CloseDeviceHandle(scoped_refptr<UsbDeviceHandle> device) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   int id = device->device();
 
@@ -236,7 +246,6 @@ void UsbService::CloseDeviceHandle(scoped_refptr<UsbDeviceHandle> device,
       break;
     }
   }
-  callback.Run();
 }
 
 void UsbService::ScheduleEnumerateDevice() {
@@ -259,7 +268,16 @@ void UsbService::EnumerateDevices() {
 
   // Populates new devices.
   for (int i = 0; i < device_count; ++i) {
-    connected_devices.insert(LookupOrCreateDevice(devices[i]));
+    if (!ContainsKey(devices_, devices[i])) {
+      libusb_device_descriptor descriptor;
+      if (libusb_get_device_descriptor(devices[i], &descriptor))
+        continue;
+      devices_[devices[i]] = make_scoped_refptr(new UsbDevice(
+          devices[i], next_unique_id_, descriptor.idVendor,
+          descriptor.idProduct));
+      ++next_unique_id_;
+    }
+    connected_devices.insert(devices_[devices[i]]->unique_id());
   }
   libusb_free_device_list(devices, true);
 
@@ -279,20 +297,8 @@ void UsbService::EnumerateDevices() {
   }
 }
 
-bool UsbService::DeviceMatches(PlatformUsbDevice device,
+bool UsbService::DeviceMatches(const UsbDevice* device,
                                const uint16 vendor_id,
                                const uint16 product_id) {
-  libusb_device_descriptor descriptor;
-  if (libusb_get_device_descriptor(device, &descriptor))
-    return false;
-  return descriptor.idVendor == vendor_id && descriptor.idProduct == product_id;
-}
-
-int UsbService::LookupOrCreateDevice(PlatformUsbDevice device) {
-  if (!ContainsKey(devices_, device)) {
-    devices_[device] =
-        make_scoped_refptr(new UsbDevice(device, next_unique_id_));
-    ++next_unique_id_;
-  }
-  return devices_[device]->unique_id();
+  return device->vendor_id() == vendor_id && device->product_id() == product_id;
 }

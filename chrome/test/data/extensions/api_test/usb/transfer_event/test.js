@@ -6,7 +6,7 @@ var usb = chrome.usb;
 
 var tests = [
   function controlTransfer() {
-    usb.findDevices({vendorId: 0, productId: 0}, function (devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function (devices) {
       usb.openDevice(devices[0], function(device) {
         var transfer = new Object();
         transfer.direction = "out";
@@ -24,7 +24,7 @@ var tests = [
     });
   },
   function bulkTransfer() {
-    usb.findDevices({vendorId: 0, productId: 0}, function (devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function (devices) {
       usb.openDevice(devices[0], function(device) {
         var transfer = new Object();
         transfer.direction = "out";
@@ -38,7 +38,7 @@ var tests = [
     });
   },
   function interruptTransfer() {
-    usb.findDevices({vendorId: 0, productId: 0}, function (devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function (devices) {
       usb.openDevice(devices[0], function(device) {
         var transfer = new Object();
         transfer.direction = "out";
@@ -52,7 +52,7 @@ var tests = [
     });
   },
   function isochronousTransfer() {
-    usb.findDevices({vendorId: 0, productId: 0}, function (devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function (devices) {
       usb.openDevice(devices[0], function(device) {
         var transfer = new Object();
         transfer.direction = "out";

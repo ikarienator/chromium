@@ -47,14 +47,10 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   enum TransferRequestType { STANDARD, CLASS, VENDOR, RESERVED };
   enum TransferRecipient { DEVICE, INTERFACE, ENDPOINT, OTHER };
 
-  // Usually you will not want to directly create a UsbDevice, favoring to let
-  // the UsbService take care of the logistics of getting a platform device
-  // handle and handling events for it.
-  UsbDeviceHandle(UsbService* service, int device,
-                  PlatformUsbDeviceHandle handle);
-
   PlatformUsbDeviceHandle handle() { return handle_; }
-  int device() { return device_; }
+  int device() const { return device_; }
+  uint16 vendor_id() const { return vendor_id_; }
+  uint16 product_id() const { return product_id_; }
 
   // Close the USB device and release the underlying platform device. |callback|
   // is invoked after the device has been closed.
@@ -134,6 +130,11 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
     UsbTransferCallback callback;
   };
 
+  // UsbDeviceHandle should only be created from UsbDevice class.
+  UsbDeviceHandle(UsbService* service,
+                  int device, const uint16 vendor_id, const uint16 product_id,
+                  PlatformUsbDeviceHandle handle);
+
   friend class UsbDevice;
 
   // This only called from UsbDevice, thus always from FILE thread.
@@ -153,7 +154,9 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   // responsible for its destruction, there is no case where a UsbDevice can
   // have outlived its originating UsbService.
   UsbService* const service_;
-  int const device_;
+  const int device_;
+  const uint16 vendor_id_;
+  const uint16 product_id_;
 
   // Lock the handle for the race condition of InternalClose and
   // TransferComplete.

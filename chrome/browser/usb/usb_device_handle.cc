@@ -127,14 +127,20 @@ UsbDeviceHandle::Transfer::Transfer()
 UsbDeviceHandle::Transfer::~Transfer() {}
 
 UsbDeviceHandle::UsbDeviceHandle(UsbService* service,
-                                 int device,
+                                 const int device,
+                                 const uint16 vendor_id,
+                                 const uint16 product_id,
                                  PlatformUsbDeviceHandle handle)
-    : service_(service), device_(device), handle_(handle) {
+    : service_(service),
+      device_(device),
+      vendor_id_(vendor_id),
+      product_id_(product_id),
+      handle_(handle) {
   DCHECK(handle) << "Cannot create device with NULL handle.";
 }
 
 UsbDeviceHandle::UsbDeviceHandle()
-    : service_(NULL), device_(0), handle_(NULL) {
+    : service_(NULL), device_(0), vendor_id_(0), product_id_(0), handle_(NULL) {
 }
 
 UsbDeviceHandle::~UsbDeviceHandle() {
@@ -144,13 +150,13 @@ UsbDeviceHandle::~UsbDeviceHandle() {
 void UsbDeviceHandle::Close(const base::Callback<void()>& callback) {
   if (handle_ == 0)
     return;
-  BrowserThread::PostTask(
+  BrowserThread::PostTaskAndReply(
       BrowserThread::FILE,
       FROM_HERE,
       base::Bind(&UsbService::CloseDeviceHandle,
                  base::Unretained(service_),
-                 make_scoped_refptr(this),
-                 callback));
+                 make_scoped_refptr(this)),
+      callback);
 }
 
 void UsbDeviceHandle::TransferComplete(PlatformUsbTransferHandle handle) {

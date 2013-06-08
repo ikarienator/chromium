@@ -71,6 +71,7 @@ class MockUsbDevice : public UsbDeviceHandle {
 
  protected:
   virtual ~MockUsbDevice() {}
+  virtual void InternalClose() {}
 };
 #if defined(OS_WIN)
 #pragma warning(pop)

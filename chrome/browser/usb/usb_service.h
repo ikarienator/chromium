@@ -44,14 +44,11 @@ class UsbService : public BrowserContextKeyedService {
                    const base::Callback<void()>& callback);
 
   // Open a device for further communication.
-  void OpenDevice(
-      int device,
-      const base::Callback<void(scoped_refptr<UsbDeviceHandle>)>& callback);
+  scoped_refptr<UsbDeviceHandle> OpenDevice(int device);
 
   // This function should not be called by normal code. It is invoked by a
   // UsbDevice's Close function and disposes of the associated platform handle.
-  void CloseDeviceHandle(scoped_refptr<UsbDeviceHandle> device,
-                   const base::Callback<void()>& callback);
+  void CloseDeviceHandle(scoped_refptr<UsbDeviceHandle> device);
 
   // Schedule an update to USB device info.
   void ScheduleEnumerateDevice();
@@ -59,7 +56,7 @@ class UsbService : public BrowserContextKeyedService {
  private:
   // Return true if |device|'s vendor and product identifiers match |vendor_id|
   // and |product_id|.
-  static bool DeviceMatches(PlatformUsbDevice device,
+  static bool DeviceMatches(const UsbDevice* device,
                             const uint16 vendor_id,
                             const uint16 product_id);
 
@@ -75,11 +72,6 @@ class UsbService : public BrowserContextKeyedService {
 
   // Enumerate USB devices from OS and Update devices_ map.
   void EnumerateDevices();
-
-  // If a UsbDevice wrapper corresponding to |device| has already been created,
-  // returns its unique id. Otherwise, creates a wrapper and associates it with
-  // the device and the next unique id.
-  int LookupOrCreateDevice(PlatformUsbDevice device);
 
   PlatformUsbContext context_;
   UsbEventDispatcher* event_dispatcher_;

@@ -23,6 +23,7 @@ namespace ListInterfaces = extensions::api::usb::ListInterfaces;
 namespace CloseDevice = extensions::api::usb::CloseDevice;
 namespace ControlTransfer = extensions::api::usb::ControlTransfer;
 namespace FindDevices = extensions::api::usb::FindDevices;
+namespace GetDevices = extensions::api::usb::GetDevices;
 namespace OpenDevice = extensions::api::usb::OpenDevice;
 namespace InterruptTransfer = extensions::api::usb::InterruptTransfer;
 namespace IsochronousTransfer = extensions::api::usb::IsochronousTransfer;
@@ -318,6 +319,15 @@ static base::Value* PopulateDevice(
   return device.ToValue().release();
 }
 
+static base::Value* PopulateDeviceHandle(
+    int handle, int vendor_id, int product_id) {
+  DeviceHandle device_handle;
+  device_handle.handle = handle;
+  device_handle.vendor_id = vendor_id;
+  device_handle.product_id = product_id;
+  return device_handle.ToValue().release();
+}
+
 static base::Value* PopulateInterfaceDescriptor(int interface_number,
         int alternate_setting, int interface_class, int interface_subclass,
         int interface_protocol,
@@ -423,16 +433,19 @@ bool UsbAsyncApiTransferFunction::ConvertRecipientSafely(
   return converted;
 }
 
-UsbFindDevicesFunction::UsbFindDevicesFunction()
-    :  service_(NULL) {}
+UsbGetDevicesFunction::UsbGetDevicesFunction()
+    : vendor_id_(0),
+      product_id_(0),
+      interface_id_(UsbDevicePermissionData::ANY_INTERFACE),
+      service_(NULL) {}
 
-UsbFindDevicesFunction::~UsbFindDevicesFunction() {}
+UsbGetDevicesFunction::~UsbGetDevicesFunction() {}
 
-void UsbFindDevicesFunction::SetDeviceForTest(UsbDeviceHandle* device) {
+void UsbGetDevicesFunction::SetDeviceForTest(UsbDeviceHandle* device) {
   device_for_test_ = device;
 }
 
-bool UsbFindDevicesFunction::PrePrepare() {
+bool UsbGetDevicesFunction::PrePrepare() {
   service_ = UsbServiceFactory::GetInstance()->GetForProfile(profile());
   if (service_ == NULL) {
     LOG(WARNING) << "Could not get UsbService for active profile.";
@@ -442,29 +455,28 @@ bool UsbFindDevicesFunction::PrePrepare() {
   return UsbAsyncApiFunction::PrePrepare();
 }
 
-bool UsbFindDevicesFunction::Prepare() {
-  parameters_ = FindDevices::Params::Create(*args_);
-  EXTENSION_FUNCTION_VALIDATE(parameters_.get());
+bool UsbGetDevicesFunction::Prepare() {
+  scoped_ptr<GetDevices::Params> parameters =
+      GetDevices::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(parameters.get());
+  vendor_id_ = parameters->options.vendor_id;
+  product_id_ = parameters->options.product_id;
+  if (parameters->options.interface_id.get())
+    interface_id_ = *parameters->options.interface_id;
   return true;
 }
 
-void UsbFindDevicesFunction::AsyncWorkStart() {
+void UsbGetDevicesFunction::AsyncWorkStart() {
   result_.reset(new base::ListValue());
 
   if (device_for_test_) {
-    Device device;
     result_->Append(PopulateDevice(device_for_test_->device(), 0, 0));
     SetResult(result_.release());
     AsyncWorkCompleted();
     return;
   }
 
-  const uint16_t vendor_id = parameters_->options.vendor_id;
-  const uint16_t product_id = parameters_->options.product_id;
-  int interface_id = parameters_->options.interface_id.get() ?
-      *parameters_->options.interface_id.get() :
-      UsbDevicePermissionData::ANY_INTERFACE;
-  UsbDevicePermission::CheckParam param(vendor_id, product_id, interface_id);
+  UsbDevicePermission::CheckParam param(vendor_id_, product_id_, interface_id_);
   if (!PermissionsData::CheckAPIPermissionWithParam(
           GetExtension(), APIPermission::kUsbDevice, &param)) {
     LOG(WARNING) << "Insufficient permissions to access device.";
@@ -477,17 +489,60 @@ void UsbFindDevicesFunction::AsyncWorkStart() {
       FROM_HERE,
       base::Bind(&UsbService::FindDevices,
                  base::Unretained(service_),
-                 vendor_id, product_id, interface_id, &devices_,
-                 base::Bind(&UsbFindDevicesFunction::OnCompleted, this)));
+                 vendor_id_, product_id_, interface_id_, &devices_,
+                 base::Bind(&UsbGetDevicesFunction::OnDevicesFound, this)));
+}
+
+void UsbGetDevicesFunction::OnDevicesFound() {
+  // Redirect this to virtual method.
+  OnCompleted();
+}
+
+void UsbGetDevicesFunction::OnCompleted() {
+  for (size_t i = 0; i < devices_.size(); ++i) {
+    result_->Append(PopulateDevice(devices_[i],
+                                   vendor_id_,
+                                   product_id_));
+  }
+
+  SetResult(result_.release());
+  AsyncWorkCompleted();
+}
+
+UsbFindDevicesFunction::UsbFindDevicesFunction() : UsbGetDevicesFunction() {}
+
+UsbFindDevicesFunction::~UsbFindDevicesFunction() {}
+
+bool UsbFindDevicesFunction::Prepare() {
+  scoped_ptr<FindDevices::Params> parameters =
+      FindDevices::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(parameters.get());
+  vendor_id_ = parameters->options.vendor_id;
+  product_id_ = parameters->options.product_id;
+  if (parameters->options.interface_id.get())
+    interface_id_ = *parameters->options.interface_id;
+  return true;
 }
 
 void UsbFindDevicesFunction::OnCompleted() {
   for (size_t i = 0; i < devices_.size(); ++i) {
-    result_->Append(PopulateDevice(devices_[i],
-                                   parameters_->options.vendor_id,
-                                   parameters_->options.product_id));
+    scoped_refptr<UsbDeviceHandle> handle = service_->OpenDevice(devices_[i]);
+    if (handle.get())
+    handles_.push_back(handle);
   }
+  BrowserThread::PostTask(BrowserThread::IO, FROM_HERE,
+      base::Bind(&UsbFindDevicesFunction::OpenDevices, this));
+}
 
+void UsbFindDevicesFunction::OpenDevices() {
+  for (size_t i = 0; i < handles_.size(); ++i) {
+    UsbDeviceResource* const resource = new UsbDeviceResource(
+        extension_->id(), handles_[i]);
+    result_->Append(PopulateDeviceHandle(
+        manager_->Add(resource),
+        handles_[i]->vendor_id(),
+        handles_[i]->product_id()));
+  }
   SetResult(result_.release());
   AsyncWorkCompleted();
 }
@@ -514,31 +569,29 @@ bool UsbOpenDeviceFunction::Prepare() {
 
 void UsbOpenDeviceFunction::AsyncWorkStart() {
   if (device_for_test_) {
-    DeviceHandle handle;
     UsbDeviceResource* const resource = new UsbDeviceResource(
         extension_->id(),
         device_for_test_);
-    handle.handle = manager_->Add(resource);
-    SetResult(handle.ToValue().release());
+    SetResult(PopulateDeviceHandle(
+        manager_->Add(resource), device_for_test_->vendor_id(),
+        device_for_test_->product_id()));
     AsyncWorkCompleted();
     return;
   }
   BrowserThread::PostTask(
       BrowserThread::FILE,
       FROM_HERE,
-      base::Bind(&UsbService::OpenDevice,
-                 base::Unretained(service_),
-                 parameters_->device.device,
-                 base::Bind(
-                     &UsbOpenDeviceFunction::OnOpened,
-                     this)));
+      base::Bind(&UsbOpenDeviceFunction::OpenDevice, this));
 }
 
-void UsbOpenDeviceFunction::OnOpened(scoped_refptr<UsbDeviceHandle> handle) {
+void UsbOpenDeviceFunction::OpenDevice() {
+  scoped_refptr<UsbDeviceHandle> handle =
+      service_->OpenDevice(parameters_->device.device);
   if (!handle.get()) {
     CompleteWithError(kErrorDisconnect);
     return;
   }
+  // Pass to IO thread to use api resource manager.
   BrowserThread::PostTask(
       BrowserThread::IO,
       FROM_HERE,
@@ -551,9 +604,8 @@ void UsbOpenDeviceFunction::OnCompleted(scoped_refptr<UsbDeviceHandle> handle) {
   UsbDeviceResource* const resource = new UsbDeviceResource(
       extension_->id(),
       handle);
-  DeviceHandle result;
-  result.handle = manager_->Add(resource);
-  SetResult(result.ToValue().release());
+  SetResult(PopulateDeviceHandle(
+      manager_->Add(resource), handle->vendor_id(), handle->product_id()));
   AsyncWorkCompleted();
   return;
 }
@@ -594,7 +646,7 @@ void UsbListInterfacesFunction::OnCompleted(bool success) {
       i < numInterfaces; ++i) {
     scoped_refptr<const UsbInterface> usbInterface(config_->GetInterface(i));
     for (size_t j = 0, numDescriptors = usbInterface->GetNumAltSettings();
-            j < numDescriptors; ++j) {
+        j < numDescriptors; ++j) {
       scoped_refptr<const UsbInterfaceDescriptor> descriptor
           = usbInterface->GetAltSetting(j);
       std::vector<linked_ptr<EndpointDescriptor> > endpoints;

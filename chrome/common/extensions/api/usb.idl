@@ -17,7 +17,7 @@ namespace usb {
   enum UsageType {data, feedback, explicitFeedback};
 
   // A <code>Device</code> uniquely identifies a connected USB device.
-  // They are returned by <code>findDevices</code> calls and the
+  // They are returned by <code>getDevices</code> calls and the
   // <code>device</code> field remains consistent for the same device.
   dictionary Device {
     long device;
@@ -30,6 +30,8 @@ namespace usb {
   // They are returned by <code>openDevice</code> calls.
   dictionary DeviceHandle {
     long handle;
+    long vendorId;
+    long productId;
   };
 
   dictionary EndpointDescriptor {
@@ -125,16 +127,17 @@ namespace usb {
     ArrayBuffer? data;
   };
 
-  // FindDevicesOptions describes the properties of devices which are found and
-  // opened via findDevices.
-  dictionary FindDevicesOptions {
+  // GetDevicesOptions describes the properties of devices which are found and
+  // opened via getDevices.
+  dictionary GetDevicesOptions {
     long vendorId;
     long productId;
     long? interfaceId;
   };
 
   callback VoidCallback = void ();
-  callback FindDevicesCallback = void (Device[] device);
+  callback GetDevicesCallback = void (Device[] devices);
+  callback FindDevicesCallback = void (DeviceHandle[] handles);
   callback OpenDeviceCallback = void (DeviceHandle handle);
   callback ListInterfacesCallback = void (InterfaceDescriptor[] descriptors);
   callback CloseDeviceCallback = void ();
@@ -142,17 +145,32 @@ namespace usb {
   callback ResetDeviceCallback = void(boolean result);
 
   interface Functions {
-    // Finds all instances of the USB devices specified by the vendorId/
+    // Get all instances of the USB devices specified by the vendorId/
     // productId pair.
     //
-    // Upon successfully enumerate the USB devices, the callback will be called
-    // with an array of <code>Device</code> dictionaries.
-    // On failure, the callback is invoked with null.
+    // Upon successfully enumeration, the callback will be called with an array
+    // of <code>Device</code> objects. <code>Device</code> objects can further 
+    // be opened by <code>openDevice</code> before any communication takes
+    // place.
     //
     // |options|: The properties to search for on target devices.
     // |callback|: Invoked after the enumeration completes.
-    static void findDevices(FindDevicesOptions options,
-        FindDevicesCallback callback);
+    static void getDevices(GetDevicesOptions options,
+                           GetDevicesCallback callback);
+
+    // Open all instances of the USB devices specified by the vendorId/
+    // productId pair.
+    //
+    // Upon successfully enumeration, the callback will be called with an array
+    // of <code>DeviceHandle</code> objects. Developer is responsible to call
+    // <code>closeDevice</code> on every <code>DeviceHandle</code>, otherwise
+    // the USB device will not be closed even if the app not long possess any
+    // reference to the <code>DeviceHanlde</code> object.
+    //
+    // |options|: The properties to search for on target devices.
+    // |callback|: Invoked after the enumeration completes.
+    static void findDevices(GetDevicesOptions options,
+                            FindDevicesCallback callback);
 
     // Create a <code>DeviceHandle</code> for further operations.
     //

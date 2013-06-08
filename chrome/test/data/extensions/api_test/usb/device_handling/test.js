@@ -6,7 +6,7 @@ var usb = chrome.usb;
 
 var tests = [
   function explicitCloseDevice() {
-    usb.findDevices({vendorId: 0, productId: 0}, function(devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
         usb.closeDevice(device, function() {
           chrome.test.assertEq(undefined, chrome.runtime.lastError);
@@ -16,7 +16,7 @@ var tests = [
     });
   },
   function resetDevice() {
-    usb.findDevices({vendorId: 0, productId: 0}, function(devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
         usb.resetDevice(device, function(result) {
           chrome.test.assertEq(result, true);

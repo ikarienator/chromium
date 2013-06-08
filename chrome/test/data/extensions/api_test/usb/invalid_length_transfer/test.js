@@ -38,7 +38,7 @@ function createInvalidTransferTest(usbFunction, transferInfo, transferLength) {
   return function() {
     genericTransfer["length"] = transferLength;
     controlTransfer["length"] = transferLength;
-    usb.findDevices({vendorId: 0, productId: 0}, function(devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
         usbFunction(device, transferInfo, chrome.test.callbackFail(
             errorTransferLength, function() {}));
@@ -53,7 +53,7 @@ function createInvalidPacketLengthTest(
     genericTransfer["length"] = transferLength;
     isoTransfer["packets"] = packets;
     isoTransfer["packetLength"] = packetLength;
-    usb.findDevices({vendorId: 0, productId: 0}, function(devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
         usb.isochronousTransfer(device, isoTransfer,
             chrome.test.callbackFail(
