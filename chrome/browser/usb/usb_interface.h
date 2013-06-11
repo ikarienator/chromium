@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,7 +48,7 @@ class UsbConfigDescriptor;
 class UsbEndpointDescriptor : public base::RefCounted<UsbEndpointDescriptor> {
  public:
   UsbEndpointDescriptor(scoped_refptr<const UsbConfigDescriptor> config,
-      PlatformUsbEndpointDescriptor descriptor);
+                        PlatformUsbEndpointDescriptor descriptor);
 
   int GetAddress() const;
   UsbEndpointDirection GetDirection() const;
@@ -66,15 +66,13 @@ class UsbEndpointDescriptor : public base::RefCounted<UsbEndpointDescriptor> {
   PlatformUsbEndpointDescriptor descriptor_;
 };
 
-class UsbInterfaceDescriptor
-    : public base::RefCounted<UsbInterfaceDescriptor> {
+class UsbInterfaceDescriptor : public base::RefCounted<UsbInterfaceDescriptor> {
  public:
   UsbInterfaceDescriptor(scoped_refptr<const UsbConfigDescriptor> config,
-      PlatformUsbInterfaceDescriptor descriptor);
+                         PlatformUsbInterfaceDescriptor descriptor);
 
   size_t GetNumEndpoints() const;
-  scoped_refptr<const UsbEndpointDescriptor>
-      GetEndpoint(size_t index) const;
+  scoped_refptr<const UsbEndpointDescriptor> GetEndpoint(size_t index) const;
 
   int GetInterfaceNumber() const;
   int GetAlternateSetting() const;
@@ -93,11 +91,10 @@ class UsbInterfaceDescriptor
 class UsbInterface : public base::RefCounted<UsbInterface> {
  public:
   UsbInterface(scoped_refptr<const UsbConfigDescriptor> config,
-      PlatformUsbInterface usbInterface);
+               PlatformUsbInterface usbInterface);
 
   size_t GetNumAltSettings() const;
-  scoped_refptr<const UsbInterfaceDescriptor>
-      GetAltSetting(size_t index) const;
+  scoped_refptr<const UsbInterfaceDescriptor> GetAltSetting(size_t index) const;
 
  private:
   friend class base::RefCounted<UsbInterface>;
@@ -115,8 +112,7 @@ class UsbConfigDescriptor : public base::RefCounted<UsbConfigDescriptor> {
 
   size_t GetNumInterfaces() const;
 
-  scoped_refptr<const UsbInterface>
-      GetInterface(size_t index) const;
+  scoped_refptr<const UsbInterface> GetInterface(size_t index) const;
 
  private:
   friend class base::RefCounted<UsbConfigDescriptor>;

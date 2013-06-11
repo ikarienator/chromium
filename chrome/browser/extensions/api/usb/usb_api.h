@@ -44,12 +44,11 @@ class UsbAsyncApiTransferFunction : public UsbAsyncApiFunction {
   bool ConvertDirectionSafely(const extensions::api::usb::Direction& input,
                               UsbEndpointDirection* output);
   bool ConvertRequestTypeSafely(const extensions::api::usb::RequestType& input,
-                              UsbDeviceHandle::TransferRequestType* output);
+                                UsbDeviceHandle::TransferRequestType* output);
   bool ConvertRecipientSafely(const extensions::api::usb::Recipient& input,
                               UsbDeviceHandle::TransferRecipient* output);
 
-  void OnCompleted(UsbTransferStatus status,
-                   scoped_refptr<net::IOBuffer> data,
+  void OnCompleted(UsbTransferStatus status, scoped_refptr<net::IOBuffer> data,
                    size_t length);
 };
 
@@ -85,7 +84,6 @@ class UsbFindDevicesFunction : public UsbGetDevicesFunction {
   DECLARE_EXTENSION_FUNCTION("usb.findDevices", USB_FINDDEVICES)
 
   UsbFindDevicesFunction();
-
 
  protected:
   virtual ~UsbFindDevicesFunction();
@@ -143,7 +141,7 @@ class UsbListInterfacesFunction : public UsbAsyncApiFunction {
       const UsbSynchronizationType& input,
       extensions::api::usb::SynchronizationType* output);
   bool ConvertTransferTypeSafely(const UsbTransferType& input,
-                              extensions::api::usb::TransferType* output);
+                                 extensions::api::usb::TransferType* output);
   bool ConvertUsageTypeSafely(const UsbUsageType& input,
                               extensions::api::usb::UsageType* output);
 
@@ -254,8 +252,7 @@ class UsbBulkTransferFunction : public UsbAsyncApiTransferFunction {
   virtual void AsyncWorkStart() OVERRIDE;
 
  private:
-  scoped_ptr<extensions::api::usb::BulkTransfer::Params>
-      parameters_;
+  scoped_ptr<extensions::api::usb::BulkTransfer::Params> parameters_;
 };
 
 class UsbInterruptTransferFunction : public UsbAsyncApiTransferFunction {

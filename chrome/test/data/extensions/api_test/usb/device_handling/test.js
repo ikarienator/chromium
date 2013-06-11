@@ -21,13 +21,10 @@ var tests = [
         usb.resetDevice(device, function(result) {
           chrome.test.assertEq(result, true);
           // Ensure the device is still open.
-          var transfer = {
-            direction: "out",
-            endpoint: 2,
-            data: new ArrayBuffer(1)
-          };
+          var transfer = {direction: "out", endpoint: 2,
+                          data: new ArrayBuffer(1)};
           usb.interruptTransfer(device, transfer, function(result) {
-            // This is designed to fail.
+              // This is designed to fail.
             usb.resetDevice(device, function(result) {
               chrome.test.assertEq(result, false);
               usb.interruptTransfer(device, transfer, function(result) {
@@ -35,8 +32,7 @@ var tests = [
                 chrome.test.assertEq(
                     chrome.runtime.lastError &&
                     chrome.runtime.lastError.message,
-                    'No such device.'
-                );
+                    'No such device.');
                 chrome.test.succeed();
               });
             });

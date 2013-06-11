@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "base/memory/ref_counted.h"
-#include "base/synchronization/lock.h"
+#include "base/threading/non_thread_safe.h"
 #include "chrome/browser/usb/usb_interface.h"
 #include "net/base/completion_callback.h"
 #include "net/base/io_buffer.h"
@@ -36,16 +36,29 @@ enum UsbTransferStatus {
 };
 
 typedef base::Callback<void(UsbTransferStatus, scoped_refptr<net::IOBuffer>,
-    size_t)> UsbTransferCallback;
+                            size_t)> UsbTransferCallback;
 typedef base::Callback<void(bool)> UsbInterfaceCallback;
 
 // A UsbDevice wraps the platform's underlying representation of what a USB
 // device actually is, and provides accessors for performing many of the
 // standard USB operations.
-class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
+//
+// This class should be used on FILE thread.
+class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle>,
+                        public base::NonThreadSafe {
  public:
-  enum TransferRequestType { STANDARD, CLASS, VENDOR, RESERVED };
-  enum TransferRecipient { DEVICE, INTERFACE, ENDPOINT, OTHER };
+  enum TransferRequestType {
+    STANDARD,
+    CLASS,
+    VENDOR,
+    RESERVED
+  };
+  enum TransferRecipient {
+    DEVICE,
+    INTERFACE,
+    ENDPOINT,
+    OTHER
+  };
 
   PlatformUsbDeviceHandle handle() { return handle_; }
   int device() const { return device_; }
@@ -66,38 +79,31 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
                                 const UsbInterfaceCallback& callback);
 
   virtual void SetInterfaceAlternateSetting(
-      const int interface_number,
-      const int alternate_setting,
+      const int interface_number, const int alternate_setting,
       const UsbInterfaceCallback& callback);
 
+  // The following four methods can be called on any thread.
   virtual void ControlTransfer(const UsbEndpointDirection direction,
                                const TransferRequestType request_type,
                                const TransferRecipient recipient,
-                               const uint8 request,
-                               const uint16 value,
-                               const uint16 index,
-                               net::IOBuffer* buffer,
-                               const size_t length,
-                               const unsigned int timeout,
+                               const uint8 request, const uint16 value,
+                               const uint16 index, net::IOBuffer* buffer,
+                               const size_t length, const unsigned int timeout,
                                const UsbTransferCallback& callback);
 
   virtual void BulkTransfer(const UsbEndpointDirection direction,
-                            const uint8 endpoint,
-                            net::IOBuffer* buffer,
-                            const size_t length,
-                            const unsigned int timeout,
+                            const uint8 endpoint, net::IOBuffer* buffer,
+                            const size_t length, const unsigned int timeout,
                             const UsbTransferCallback& callback);
 
   virtual void InterruptTransfer(const UsbEndpointDirection direction,
-                                 const uint8 endpoint,
-                                 net::IOBuffer* buffer,
+                                 const uint8 endpoint, net::IOBuffer* buffer,
                                  const size_t length,
                                  const unsigned int timeout,
                                  const UsbTransferCallback& callback);
 
   virtual void IsochronousTransfer(const UsbEndpointDirection direction,
-                                   const uint8 endpoint,
-                                   net::IOBuffer* buffer,
+                                   const uint8 endpoint, net::IOBuffer* buffer,
                                    const size_t length,
                                    const unsigned int packets,
                                    const unsigned int packet_length,
@@ -131,9 +137,8 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   };
 
   // UsbDeviceHandle should only be created from UsbDevice class.
-  UsbDeviceHandle(UsbService* service,
-                  int device, const uint16 vendor_id, const uint16 product_id,
-                  PlatformUsbDeviceHandle handle);
+  UsbDeviceHandle(UsbService* service, int device, const uint16 vendor_id,
+                  const uint16 product_id, PlatformUsbDeviceHandle handle);
 
   friend class UsbDevice;
 
@@ -144,10 +149,8 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   // the completion callback until the transfer finishes, whereupon it invokes
   // the callback then releases the buffer.
   void SubmitTransfer(PlatformUsbTransferHandle handle,
-                      UsbTransferType transfer_type,
-                      net::IOBuffer* buffer,
-                      const size_t length,
-                      const UsbTransferCallback& callback);
+                      UsbTransferType transfer_type, net::IOBuffer* buffer,
+                      const size_t length, const UsbTransferCallback& callback);
 
   // The UsbService isn't referenced here to prevent a dependency cycle between
   // the service and the devices. Since a service owns every device, and is
@@ -158,19 +161,11 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   const uint16 vendor_id_;
   const uint16 product_id_;
 
-  // Lock the handle for the race condition of InternalClose and
-  // TransferComplete.
-  base::Lock handle_lock_;
   PlatformUsbDeviceHandle handle_;
 
   // transfers_ tracks all in-flight transfers associated with this device,
   // allowing the device to retain the buffer and callback associated with a
-  // transfer until such time that it completes. It is protected by
-  // transfer_lock_.
-  //
-  // If both locks are used, the locking order must be first handle_lock_, then
-  // transfer_lock_.
-  base::Lock transfer_lock_;
+  // transfer until such time that it completes.
   std::map<PlatformUsbTransferHandle, Transfer> transfers_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbDeviceHandle);

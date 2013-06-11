@@ -25,15 +25,56 @@ class IOBuffer;
 namespace extensions {
 
 // A UsbDeviceResource is an ApiResource wrapper for a UsbDevice.
+// It will redirect all the requests on the FILE thread.
 class UsbDeviceResource : public ApiResource {
  public:
   UsbDeviceResource(const std::string& owner_extension_id,
                     scoped_refptr<UsbDeviceHandle> device);
   virtual ~UsbDeviceResource();
 
-  scoped_refptr<UsbDeviceHandle> device() {
-    return device_;
-  }
+  virtual void Close(const base::Callback<void()>& callback);
+
+  virtual void ListInterfaces(UsbConfigDescriptor* config,
+                              const UsbInterfaceCallback& callback);
+
+  virtual void ClaimInterface(const int interface_number,
+                              const UsbInterfaceCallback& callback);
+
+  virtual void ReleaseInterface(const int interface_number,
+                                const UsbInterfaceCallback& callback);
+
+  virtual void SetInterfaceAlternateSetting(
+      const int interface_number, const int alternate_setting,
+      const UsbInterfaceCallback& callback);
+
+  virtual void ControlTransfer(
+      const UsbEndpointDirection direction,
+      const UsbDeviceHandle::TransferRequestType request_type,
+      const UsbDeviceHandle::TransferRecipient recipient, const uint8 request,
+      const uint16 value, const uint16 index, net::IOBuffer* buffer,
+      const size_t length, const unsigned int timeout,
+      const UsbTransferCallback& callback);
+
+  virtual void BulkTransfer(const UsbEndpointDirection direction,
+                            const uint8 endpoint, net::IOBuffer* buffer,
+                            const size_t length, const unsigned int timeout,
+                            const UsbTransferCallback& callback);
+
+  virtual void InterruptTransfer(const UsbEndpointDirection direction,
+                                 const uint8 endpoint, net::IOBuffer* buffer,
+                                 const size_t length,
+                                 const unsigned int timeout,
+                                 const UsbTransferCallback& callback);
+
+  virtual void IsochronousTransfer(const UsbEndpointDirection direction,
+                                   const uint8 endpoint, net::IOBuffer* buffer,
+                                   const size_t length,
+                                   const unsigned int packets,
+                                   const unsigned int packet_length,
+                                   const unsigned int timeout,
+                                   const UsbTransferCallback& callback);
+
+  virtual void ResetDevice(const base::Callback<void(bool)>& callback);
 
  private:
   friend class ApiResourceManager<UsbDeviceResource>;

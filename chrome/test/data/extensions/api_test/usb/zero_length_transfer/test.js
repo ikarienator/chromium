@@ -12,12 +12,12 @@ var tests = [
         transfer.direction = "out";
         transfer.endpoint = 1;
         transfer.data = new ArrayBuffer(0);
-        usb.bulkTransfer(device, transfer, function (result) {
+        usb.bulkTransfer(device, transfer, function(result) {
           chrome.test.succeed();
         });
       });
     });
-  },
+  }
 ];
 
 chrome.test.runTests(tests);

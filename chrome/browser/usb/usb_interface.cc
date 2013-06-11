@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,7 @@
 UsbEndpointDescriptor::UsbEndpointDescriptor(
     scoped_refptr<const UsbConfigDescriptor> config,
     PlatformUsbEndpointDescriptor descriptor)
-    : config_(config), descriptor_(descriptor) {
-}
+    : config_(config), descriptor_(descriptor) {}
 
 UsbEndpointDescriptor::~UsbEndpointDescriptor() {}
 
@@ -88,8 +87,7 @@ int UsbEndpointDescriptor::GetPollingInterval() const {
 UsbInterfaceDescriptor::UsbInterfaceDescriptor(
     scoped_refptr<const UsbConfigDescriptor> config,
     PlatformUsbInterfaceDescriptor descriptor)
-    : config_(config), descriptor_(descriptor) {
-}
+    : config_(config), descriptor_(descriptor) {}
 
 UsbInterfaceDescriptor::~UsbInterfaceDescriptor() {}
 
@@ -97,10 +95,10 @@ size_t UsbInterfaceDescriptor::GetNumEndpoints() const {
   return descriptor_->bNumEndpoints;
 }
 
-scoped_refptr<const UsbEndpointDescriptor>
-    UsbInterfaceDescriptor::GetEndpoint(size_t index) const {
-  return make_scoped_refptr(new UsbEndpointDescriptor(config_,
-      &descriptor_->endpoint[index]));
+scoped_refptr<const UsbEndpointDescriptor> UsbInterfaceDescriptor::GetEndpoint(
+    size_t index) const {
+  return make_scoped_refptr(
+      new UsbEndpointDescriptor(config_, &descriptor_->endpoint[index]));
 }
 
 int UsbInterfaceDescriptor::GetInterfaceNumber() const {
@@ -124,9 +122,8 @@ int UsbInterfaceDescriptor::GetInterfaceProtocol() const {
 }
 
 UsbInterface::UsbInterface(scoped_refptr<const UsbConfigDescriptor> config,
-    PlatformUsbInterface usbInterface)
-    : config_(config), interface_(usbInterface) {
-}
+                           PlatformUsbInterface usbInterface)
+    : config_(config), interface_(usbInterface) {}
 
 UsbInterface::~UsbInterface() {}
 
@@ -134,15 +131,13 @@ size_t UsbInterface::GetNumAltSettings() const {
   return interface_->num_altsetting;
 }
 
-scoped_refptr<const UsbInterfaceDescriptor>
-    UsbInterface::GetAltSetting(size_t index) const {
-  return make_scoped_refptr(new UsbInterfaceDescriptor(config_,
-      &interface_->altsetting[index]));
+scoped_refptr<const UsbInterfaceDescriptor> UsbInterface::GetAltSetting(
+    size_t index) const {
+  return make_scoped_refptr(
+      new UsbInterfaceDescriptor(config_, &interface_->altsetting[index]));
 }
 
-UsbConfigDescriptor::UsbConfigDescriptor()
-    : config_(NULL) {
-}
+UsbConfigDescriptor::UsbConfigDescriptor() : config_(NULL) {}
 
 UsbConfigDescriptor::~UsbConfigDescriptor() {
   if (config_ != NULL) {
@@ -159,8 +154,8 @@ size_t UsbConfigDescriptor::GetNumInterfaces() const {
   return config_->bNumInterfaces;
 }
 
-scoped_refptr<const UsbInterface>
-    UsbConfigDescriptor::GetInterface(size_t index) const {
-  return make_scoped_refptr(new UsbInterface(make_scoped_refptr(this),
-          &config_->interface[index]));
+scoped_refptr<const UsbInterface> UsbConfigDescriptor::GetInterface(
+    size_t index) const {
+  return make_scoped_refptr(
+      new UsbInterface(make_scoped_refptr(this), &config_->interface[index]));
 }

@@ -6,9 +6,9 @@ var usb = chrome.usb;
 
 var tests = [
   function listInterfaces() {
-    usb.getDevices({vendorId: 0, productId: 0}, function (devices) {
+    usb.getDevices({vendorId : 0, productId : 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
-        usb.listInterfaces(device, function (result) {
+        usb.listInterfaces(device, function(result) {
           chrome.test.succeed();
         });
       });

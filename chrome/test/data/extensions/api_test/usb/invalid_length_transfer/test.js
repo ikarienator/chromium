@@ -56,8 +56,7 @@ function createInvalidPacketLengthTest(
     usb.getDevices({vendorId: 0, productId: 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
         usb.isochronousTransfer(device, isoTransfer,
-            chrome.test.callbackFail(
-                errorMessage, function() {}));
+            chrome.test.callbackFail(errorMessage, function() {}));
       });
     });
   };

@@ -13,6 +13,7 @@
 #include "chrome/browser/extensions/api/api_resource.h"
 #include "chrome/browser/usb/usb_device_handle.h"
 #include "chrome/common/extensions/api/usb.h"
+#include "content/public/browser/browser_thread.h"
 
 namespace extensions {
 
@@ -29,7 +30,7 @@ ApiResourceManager<UsbDeviceResource>::GetFactoryInstance() {
 
 namespace {
 
-void EmptyCallback() { }
+void EmptyCallback(void) {}
 
 }  // namepsace
 
@@ -37,8 +38,127 @@ UsbDeviceResource::UsbDeviceResource(const std::string& owner_extension_id,
                                      scoped_refptr<UsbDeviceHandle> device)
     : ApiResource(owner_extension_id), device_(device) {}
 
-UsbDeviceResource::~UsbDeviceResource() {
-  device_->Close(base::Bind(&EmptyCallback));
+UsbDeviceResource::~UsbDeviceResource() { Close(base::Bind(EmptyCallback)); }
+
+void UsbDeviceResource::Close(const base::Callback<void()>& callback) {
+  scoped_refptr<UsbDeviceHandle> handle;
+  handle.swap(device_);
+  if (!handle.get()) {
+    callback.Run();
+    return;
+  }
+  content::BrowserThread::PostTask(
+      content::BrowserThread::FILE, FROM_HERE,
+      base::Bind(&UsbDeviceHandle::Close, handle, callback));
+}
+
+void UsbDeviceResource::ListInterfaces(UsbConfigDescriptor* config,
+                                       const UsbInterfaceCallback& callback) {
+  if (!device_.get()) {
+    callback.Run(false);
+  }
+  content::BrowserThread::PostTask(
+      content::BrowserThread::FILE, FROM_HERE,
+      base::Bind(&UsbDeviceHandle::ListInterfaces, device_,
+                 make_scoped_refptr(config), callback));
+}
+
+void UsbDeviceResource::ClaimInterface(const int interface_number,
+                                       const UsbInterfaceCallback& callback) {
+  if (!device_.get()) {
+    callback.Run(false);
+  }
+  content::BrowserThread::PostTask(
+      content::BrowserThread::FILE, FROM_HERE,
+      base::Bind(&UsbDeviceHandle::ClaimInterface, device_, interface_number,
+                 callback));
+}
+
+void UsbDeviceResource::ReleaseInterface(const int interface_number,
+                                         const UsbInterfaceCallback& callback) {
+  if (!device_.get()) {
+    callback.Run(false);
+  }
+  content::BrowserThread::PostTask(
+      content::BrowserThread::FILE, FROM_HERE,
+      base::Bind(&UsbDeviceHandle::ReleaseInterface, device_, interface_number,
+                 callback));
+}
+
+void UsbDeviceResource::SetInterfaceAlternateSetting(
+    const int interface_number, const int alternate_setting,
+    const UsbInterfaceCallback& callback) {
+  if (!device_.get()) {
+    callback.Run(false);
+  }
+  content::BrowserThread::PostTask(
+      content::BrowserThread::FILE, FROM_HERE,
+      base::Bind(&UsbDeviceHandle::SetInterfaceAlternateSetting, device_,
+                 interface_number, alternate_setting, callback));
+}
+
+void UsbDeviceResource::ControlTransfer(
+    const UsbEndpointDirection direction,
+    const UsbDeviceHandle::TransferRequestType request_type,
+    const UsbDeviceHandle::TransferRecipient recipient, const uint8 request,
+    const uint16 value, const uint16 index, net::IOBuffer* buffer,
+    const size_t length, const unsigned int timeout,
+    const UsbTransferCallback& callback) {
+  if (!device_.get()) {
+    callback.Run(USB_TRANSFER_DISCONNECT,
+                 scoped_refptr<net::IOBuffer>(), 0);
+  }
+  device_->ControlTransfer(direction, request_type, recipient, request, value,
+                           index, buffer, length, timeout, callback);
+}
+
+void UsbDeviceResource::BulkTransfer(const UsbEndpointDirection direction,
+                                     const uint8 endpoint,
+                                     net::IOBuffer* buffer, const size_t length,
+                                     const unsigned int timeout,
+                                     const UsbTransferCallback& callback) {
+  if (!device_.get()) {
+    callback.Run(USB_TRANSFER_DISCONNECT,
+                 scoped_refptr<net::IOBuffer>(), 0);
+  }
+  device_->BulkTransfer(direction, endpoint, buffer, length, timeout, callback);
+}
+
+void UsbDeviceResource::InterruptTransfer(const UsbEndpointDirection direction,
+                                          const uint8 endpoint,
+                                          net::IOBuffer* buffer,
+                                          const size_t length,
+                                          const unsigned int timeout,
+                                          const UsbTransferCallback& callback) {
+  if (!device_.get()) {
+    callback.Run(USB_TRANSFER_DISCONNECT,
+                 scoped_refptr<net::IOBuffer>(), 0);
+  }
+  device_->InterruptTransfer(direction, endpoint, buffer, length, timeout,
+                             callback);
+}
+
+void UsbDeviceResource::IsochronousTransfer(
+    const UsbEndpointDirection direction, const uint8 endpoint,
+    net::IOBuffer* buffer, const size_t length, const unsigned int packets,
+    const unsigned int packet_length, const unsigned int timeout,
+    const UsbTransferCallback& callback) {
+  if (!device_.get()) {
+    callback.Run(USB_TRANSFER_DISCONNECT,
+                 scoped_refptr<net::IOBuffer>(), 0);
+  }
+  device_->IsochronousTransfer(direction, endpoint, buffer, length, packets,
+                               packet_length, timeout, callback);
+}
+
+void UsbDeviceResource::ResetDevice(
+    const base::Callback<void(bool)>& callback) {
+  if (!device_.get()) {
+    callback.Run(false);
+  }
+  content::BrowserThread::PostTask(
+      content::BrowserThread::FILE, FROM_HERE,
+      base::Bind(&UsbDeviceHandle::ResetDevice, device_, callback));
 }
 
 }  // namespace extensions

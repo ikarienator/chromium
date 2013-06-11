@@ -6,7 +6,7 @@ var usb = chrome.usb;
 
 var tests = [
   function controlTransfer() {
-    usb.getDevices({vendorId: 0, productId: 0}, function (devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
         var transfer = new Object();
         transfer.direction = "out";
@@ -17,42 +17,42 @@ var tests = [
         transfer.index = 3;
         transfer.data = new ArrayBuffer(1);
 
-        usb.controlTransfer(device, transfer, function (result) {
+        usb.controlTransfer(device, transfer, function(result) {
           chrome.test.succeed();
         });
       });
     });
   },
   function bulkTransfer() {
-    usb.getDevices({vendorId: 0, productId: 0}, function (devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
         var transfer = new Object();
         transfer.direction = "out";
         transfer.endpoint = 1;
         transfer.data = new ArrayBuffer(1);
 
-        usb.bulkTransfer(device, transfer, function (result) {
+        usb.bulkTransfer(device, transfer, function(result) {
           chrome.test.succeed();
         });
       });
     });
   },
   function interruptTransfer() {
-    usb.getDevices({vendorId: 0, productId: 0}, function (devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
         var transfer = new Object();
         transfer.direction = "out";
         transfer.endpoint = 2;
         transfer.data = new ArrayBuffer(1);
 
-        usb.interruptTransfer(device, transfer, function (result) {
+        usb.interruptTransfer(device, transfer, function(result) {
           chrome.test.succeed();
         });
       });
     });
   },
   function isochronousTransfer() {
-    usb.getDevices({vendorId: 0, productId: 0}, function (devices) {
+    usb.getDevices({vendorId: 0, productId: 0}, function(devices) {
       usb.openDevice(devices[0], function(device) {
         var transfer = new Object();
         transfer.direction = "out";
@@ -64,12 +64,12 @@ var tests = [
         isoTransfer.packets = 1;
         isoTransfer.packetLength = 1;
 
-        usb.isochronousTransfer(device, isoTransfer, function (result) {
+        usb.isochronousTransfer(device, isoTransfer, function(result) {
           chrome.test.succeed();
         });
       });
     });
-  },
+  }
 ];
 
 chrome.test.runTests(tests);

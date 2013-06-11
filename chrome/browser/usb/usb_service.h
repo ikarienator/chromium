@@ -10,13 +10,14 @@
 #include <vector>
 
 #include "base/basictypes.h"
+#include "base/threading/non_thread_safe.h"
 #include "base/threading/platform_thread.h"
 #include "chrome/browser/usb/usb_device_handle.h"
 #include "components/browser_context_keyed_service/browser_context_keyed_service.h"
 #include "third_party/libusb/src/libusb/libusb.h"
 
-class UsbEventDispatcher;
 class UsbDevice;
+class UsbContext;
 
 typedef struct libusb_context* PlatformUsbContext;
 typedef struct libusb_device* PlatformUsbDevice;
@@ -25,22 +26,20 @@ typedef struct libusb_device* PlatformUsbDevice;
 // used to manage and dispatch USB events. It is also responsbile for device
 // discovery on the system, which allows it to re-use device handles to prevent
 // competition for the same USB device.
-class UsbService : public BrowserContextKeyedService {
+//
+// This class should commonly be used on FILE thread.
+class UsbService : public BrowserContextKeyedService,
+                   public base::NonThreadSafe {
  public:
   UsbService();
   virtual ~UsbService();
 
-  // Cleanup must be invoked before the service is destroyed. It interrupts the
-  // event handling thread and disposes of open devices.
   virtual void Shutdown() OVERRIDE;
-
   // Find all of the devices attached to the system that are identified by
   // |vendor_id| and |product_id|, inserting them into |devices|. Clears
   // |devices| before use. Calls |callback| once |devices| is populated.
-  void FindDevices(const uint16 vendor_id,
-                   const uint16 product_id,
-                   const int interface_id,
-                   std::vector<int>* devices,
+  void FindDevices(const uint16 vendor_id, const uint16 product_id,
+                   const int interface_id, std::vector<int>* devices,
                    const base::Callback<void()>& callback);
 
   // Open a device for further communication.
@@ -51,30 +50,27 @@ class UsbService : public BrowserContextKeyedService {
   void CloseDeviceHandle(scoped_refptr<UsbDeviceHandle> device);
 
   // Schedule an update to USB device info.
+  // This method can be called on any thread.
   void ScheduleEnumerateDevice();
 
  private:
   // Return true if |device|'s vendor and product identifiers match |vendor_id|
   // and |product_id|.
-  static bool DeviceMatches(const UsbDevice* device,
-                            const uint16 vendor_id,
+  static bool DeviceMatches(const UsbDevice* device, const uint16 vendor_id,
                             const uint16 product_id);
 
   // FindDevicesImpl is called by FindDevices on ChromeOS after the permission
   // broker has signaled that permission has been granted to access the
   // underlying device nodes. On other platforms, it is called directly by
   // FindDevices.
-  void FindDevicesImpl(const uint16 vendor_id,
-                       const uint16 product_id,
+  void FindDevicesImpl(const uint16 vendor_id, const uint16 product_id,
                        std::vector<int>* devices,
-                       const base::Callback<void()>& callback,
-                       bool success);
+                       const base::Callback<void()>& callback, bool success);
 
   // Enumerate USB devices from OS and Update devices_ map.
   void EnumerateDevices();
 
-  PlatformUsbContext context_;
-  UsbEventDispatcher* event_dispatcher_;
+  scoped_refptr<UsbContext> context_;
   int next_unique_id_;
 
   // The devices_ map contains scoped_refptrs to all connected devices.
