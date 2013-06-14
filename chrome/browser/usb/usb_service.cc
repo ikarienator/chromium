@@ -26,6 +26,7 @@ using std::vector;
 using std::set;
 using content::BrowserThread;
 using base::PlatformThreadHandle;
+using base::RefCountedThreadSafe;
 
 // The UsbEventHandler dispatches USB events on separate thread. There is
 // currently no way to signal to libusb that any caller into one of the event
@@ -71,9 +72,8 @@ UsbEventHandler::UsbEventHandler(PlatformUsbContext context)
 UsbEventHandler::~UsbEventHandler() {}
 
 // Ref-counted wrapper for PlatformUsbContext.
-class UsbContext
-    : public base::RefCountedThreadSafe<
-          UsbContext, BrowserThread::DeleteOnFileThread> {
+class UsbContext : public RefCountedThreadSafe<
+    UsbContext, BrowserThread::DeleteOnFileThread> {
  public:
   UsbContext();
   PlatformUsbContext context() const { return context_; }
@@ -108,14 +108,12 @@ UsbContext::~UsbContext() {
 // UsbService. Once the device is disconnected it will invalidate all the
 // UsbDeviceHandle objects attached to it. The class is only visible to
 // UsbService and other classes need to access the device using its unique id.
-class UsbDevice
-    : public base::NonThreadSafe,
-      public base::RefCountedThreadSafe<
-          UsbDevice, BrowserThread::DeleteOnFileThread> {
+class UsbDevice : public base::NonThreadSafe {
  public:
   explicit UsbDevice(UsbContext* context, PlatformUsbDevice device,
                      const int unique_id, const uint16 vendor_id,
                      const uint16 product_id);
+  virtual ~UsbDevice();
   PlatformUsbDevice device() const { return device_; }
   int unique_id() const { return unique_id_; }
   int vendor_id() const { return vendor_id_; }
@@ -125,9 +123,6 @@ class UsbDevice
   void CloseDeviceHandle(UsbDeviceHandle* device);
 
  private:
-  virtual ~UsbDevice();
-  friend struct BrowserThread::DeleteOnThread<BrowserThread::FILE>;
-  friend class base::DeleteHelper<UsbDevice>;
   // Retain the context so it will not be release before the destruction
   // of the UsbDevice object.
   scoped_refptr<UsbContext> context_;
@@ -136,7 +131,6 @@ class UsbDevice
   const uint16 unique_id_;
   const uint16 vendor_id_;
   const int product_id_;
-
   DISALLOW_COPY_AND_ASSIGN(UsbDevice);
 };
 
@@ -204,6 +198,9 @@ UsbService::~UsbService() {
 
 void UsbService::Shutdown() {
   context_->Stop();
+  for (DeviceMap::iterator it = devices_.begin(); it != devices_.end(); ++it) {
+    BrowserThread::DeleteSoon(BrowserThread::FILE, FROM_HERE, it->second);
+  }
   devices_.clear();
 }
 
@@ -309,14 +306,13 @@ void UsbService::EnumerateDevices() {
     if (!ContainsKey(devices_, devices[i])) {
       libusb_device_descriptor descriptor;
       if (0 != libusb_get_device_descriptor(devices[i], &descriptor)) continue;
-      devices_[devices[i]] = make_scoped_refptr(
-          new UsbDevice(context_.get(), devices[i], next_unique_id_,
-                        descriptor.idVendor, descriptor.idProduct));
+      devices_[devices[i]] = new UsbDevice(context_.get(), devices[i],
+                                           next_unique_id_, descriptor.idVendor,
+                                           descriptor.idProduct);
       ++next_unique_id_;
     }
     connected_devices.insert(devices_[devices[i]]->unique_id());
   }
-  libusb_free_device_list(devices, true);
 
   // Find disconnected devices.
   for (DeviceMap::iterator it = devices_.begin(); it != devices_.end(); ++it) {
@@ -329,8 +325,10 @@ void UsbService::EnumerateDevices() {
   for (size_t i = 0; i < disconnected_devices.size(); ++i) {
     // This should delete those devices and invalidate their handles.
     // It might take long.
+    delete devices_[disconnected_devices[i]];
     devices_.erase(disconnected_devices[i]);
   }
+  libusb_free_device_list(devices, true);
 }
 
 bool UsbService::DeviceMatches(const UsbDevice* device, const uint16 vendor_id,

@@ -76,7 +76,7 @@ class UsbService : public BrowserContextKeyedService,
   // The devices_ map contains scoped_refptrs to all connected devices.
   // They are intended to be used directly outside UsbService. Instead,
   // FindDevice methods returns their id for accessing them.
-  typedef std::map<PlatformUsbDevice, scoped_refptr<UsbDevice> > DeviceMap;
+  typedef std::map<PlatformUsbDevice, UsbDevice*> DeviceMap;
   DeviceMap devices_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbService);
