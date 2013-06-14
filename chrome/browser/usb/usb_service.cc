@@ -11,7 +11,7 @@
 #include "base/bind_helpers.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
-
+#include "base/synchronization/lock.h"
 #include "chrome/browser/usb/usb_device_handle.h"
 #include "content/public/browser/browser_thread.h"
 #include "third_party/libusb/src/libusb/libusb.h"
@@ -39,20 +39,25 @@ class UsbEventHandler : public base::PlatformThread::Delegate {
   explicit UsbEventHandler(PlatformUsbContext context);
   virtual ~UsbEventHandler();
 
-  void Stop() {
-    running_ = false;
-  }
-
   virtual void ThreadMain() OVERRIDE {
     base::PlatformThread::SetName("UsbEventDispatcher");
     VLOG(1) << "UsbEventDispatcher started.";
     running_ = true;
-    while (running_) {
+    while (true) {
+      base::AutoLock running_guard(running_lock_);
+      if (!running_)
+        break;
       libusb_handle_events(context_);
     }
     VLOG(1) << "UsbEventDispatcher shutting down.";
   }
 
+  void Stop() {
+    base::AutoLock running_guard(running_lock_);
+    running_ = false;
+  }
+
+  base::Lock running_lock_;
   volatile bool running_;
   PlatformUsbContext context_;
   DISALLOW_COPY_AND_ASSIGN(UsbEventHandler);
@@ -66,7 +71,9 @@ UsbEventHandler::UsbEventHandler(PlatformUsbContext context)
 UsbEventHandler::~UsbEventHandler() {}
 
 // Ref-counted wrapper for PlatformUsbContext.
-class UsbContext : public base::RefCountedThreadSafe<UsbContext> {
+class UsbContext
+    : public base::RefCountedThreadSafe<
+          UsbContext, BrowserThread::DeleteOnFileThread> {
  public:
   UsbContext();
   PlatformUsbContext context() const { return context_; }
@@ -76,7 +83,9 @@ class UsbContext : public base::RefCountedThreadSafe<UsbContext> {
   }
 
  private:
-  friend class base::RefCountedThreadSafe<UsbContext>;
+  friend struct BrowserThread::DeleteOnThread<BrowserThread::FILE>;
+  friend class base::DeleteHelper<UsbContext>;
+
   virtual ~UsbContext();
   PlatformUsbContext context_;
   scoped_ptr<UsbEventHandler> event_handler_;
@@ -99,11 +108,10 @@ UsbContext::~UsbContext() {
 // UsbService. Once the device is disconnected it will invalidate all the
 // UsbDeviceHandle objects attached to it. The class is only visible to
 // UsbService and other classes need to access the device using its unique id.
-//
-// This class can be only used on FILE thread. However, as UsbService calls
-// ReleaseSoon on this class, it must be RefCountedThreadSafe.
-class UsbDevice : public base::RefCountedThreadSafe<UsbDevice>,
-                  public base::NonThreadSafe {
+class UsbDevice
+    : public base::NonThreadSafe,
+      public base::RefCountedThreadSafe<
+          UsbDevice, BrowserThread::DeleteOnFileThread> {
  public:
   explicit UsbDevice(UsbContext* context, PlatformUsbDevice device,
                      const int unique_id, const uint16 vendor_id,
@@ -118,7 +126,8 @@ class UsbDevice : public base::RefCountedThreadSafe<UsbDevice>,
 
  private:
   virtual ~UsbDevice();
-  friend class base::RefCountedThreadSafe<UsbDevice>;
+  friend struct BrowserThread::DeleteOnThread<BrowserThread::FILE>;
+  friend class base::DeleteHelper<UsbDevice>;
   // Retain the context so it will not be release before the destruction
   // of the UsbDevice object.
   scoped_refptr<UsbContext> context_;
@@ -195,13 +204,6 @@ UsbService::~UsbService() {
 
 void UsbService::Shutdown() {
   context_->Stop();
-  for (DeviceMap::iterator it = devices_.begin(); it != devices_.end(); ++it) {
-    scoped_refptr<UsbDevice> to_release;
-    to_release.swap(it->second);
-    to_release->AddRef();
-    BrowserThread::ReleaseSoon(BrowserThread::FILE, FROM_HERE,
-                               to_release.get());
-  }
   devices_.clear();
 }
 

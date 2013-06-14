@@ -428,7 +428,6 @@ void UsbGetDevicesFunction::SetDeviceForTest(UsbDeviceHandle* device) {
 }
 
 bool UsbGetDevicesFunction::PrePrepare() {
-  if (device_for_test_) return UsbAsyncApiFunction::PrePrepare();
   service_ = UsbServiceFactory::GetInstance()->GetForProfile(profile());
   if (service_ == NULL) {
     LOG(WARNING) << "Could not get UsbService for active profile.";
@@ -532,7 +531,6 @@ UsbOpenDeviceFunction::UsbOpenDeviceFunction() : service_(NULL) {}
 UsbOpenDeviceFunction::~UsbOpenDeviceFunction() {}
 
 bool UsbOpenDeviceFunction::PrePrepare() {
-  if (device_for_test_) return UsbAsyncApiFunction::PrePrepare();
   service_ = UsbServiceFactory::GetInstance()->GetForProfile(profile());
   if (service_ == NULL) {
     LOG(WARNING) << "Could not get UsbService for active profile.";
