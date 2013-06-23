@@ -32,7 +32,7 @@ using base::RefCountedThreadSafe;
 // currently no way to signal to libusb that any caller into one of the event
 // handler calls should return without handling any events.
 //
-// This class in only visible to UsbContext. UsbContext manages its life cycle.
+// This class is only visible to UsbContext. UsbContext manages its life cycle.
 class UsbEventHandler : public base::PlatformThread::Delegate {
  private:
   friend class UsbContext;
@@ -72,6 +72,7 @@ UsbEventHandler::UsbEventHandler(PlatformUsbContext context)
 UsbEventHandler::~UsbEventHandler() {}
 
 // Ref-counted wrapper for PlatformUsbContext.
+// It also manages the life-cycle of UsbEventHandler
 class UsbContext : public RefCountedThreadSafe<
     UsbContext, BrowserThread::DeleteOnFileThread> {
  public:
@@ -186,7 +187,8 @@ void UsbDevice::CloseDeviceHandle(UsbDeviceHandle* device) {
 
 UsbService::UsbService()
     : context_(new UsbContext()),
-      next_unique_id_(1) {
+      next_unique_id_(1),
+      device_enumeration_scheduled_(false) {
   // This class will be consequently called on FILE thread.
   DetachFromThread();
 }
@@ -255,9 +257,8 @@ void UsbService::FindDevicesImpl(const uint16 vendor_id,
   EnumerateDevices();
 
   for (DeviceMap::iterator it = devices_.begin(); it != devices_.end(); ++it) {
-    if (DeviceMatches(it->second, vendor_id, product_id)) {
+    if (DeviceMatches(it->second, vendor_id, product_id))
       devices->push_back(it->second->unique_id());
-    }
   }
 }
 
@@ -265,9 +266,8 @@ scoped_refptr<UsbDeviceHandle> UsbService::OpenDevice(int device) {
   DCHECK(CalledOnValidThread());
   EnumerateDevices();
   for (DeviceMap::iterator it = devices_.begin(); it != devices_.end(); ++it) {
-    if (it->second->unique_id() == device) {
+    if (it->second->unique_id() == device)
       return it->second->OpenDevice(this);
-    }
   }
   return NULL;
 }
@@ -285,7 +285,10 @@ void UsbService::CloseDeviceHandle(scoped_refptr<UsbDeviceHandle> device) {
 }
 
 void UsbService::ScheduleEnumerateDevice() {
-  // TODO(ikarienator): Throttle it.
+  DCHECK(CalledOnValidThread());
+  if (device_enumeration_scheduled_)
+    return;
+  device_enumeration_scheduled_ = true;
   BrowserThread::PostTask(
       BrowserThread::FILE, FROM_HERE,
       base::Bind(&UsbService::EnumerateDevices, base::Unretained(this)));
@@ -293,10 +296,12 @@ void UsbService::ScheduleEnumerateDevice() {
 
 void UsbService::EnumerateDevices() {
   DCHECK(CalledOnValidThread());
+  device_enumeration_scheduled_ = false;
   libusb_device** devices = NULL;
   const ssize_t device_count =
       libusb_get_device_list(context_->context(), &devices);
-  if (device_count < 0) return;
+  if (device_count < 0)
+    return;
 
   set<int> connected_devices;
   vector<PlatformUsbDevice> disconnected_devices;
@@ -305,7 +310,8 @@ void UsbService::EnumerateDevices() {
   for (ssize_t i = 0; i < device_count; ++i) {
     if (!ContainsKey(devices_, devices[i])) {
       libusb_device_descriptor descriptor;
-      if (0 != libusb_get_device_descriptor(devices[i], &descriptor)) continue;
+      if (0 != libusb_get_device_descriptor(devices[i], &descriptor))
+        continue;
       devices_[devices[i]] = new UsbDevice(context_.get(), devices[i],
                                            next_unique_id_, descriptor.idVendor,
                                            descriptor.idProduct);

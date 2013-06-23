@@ -11,7 +11,6 @@
 #include "chrome/browser/usb/usb_interface.h"
 #include "chrome/browser/usb/usb_service.h"
 #include "content/public/browser/browser_thread.h"
-#include "third_party/libusb/src/libusb/libusb.h"
 
 using content::BrowserThread;
 
@@ -24,7 +23,7 @@ using content::BrowserThread;
     }                                         \
   } while (0)
 
-#define CHECK_DEVICE_RETURN                   \
+#define CHECK_DEVICE_OR_RETURN                \
   do {                                        \
     if (handle_ == NULL) {                    \
       DVLOG(1) << "Device is disconnected: "; \
@@ -34,7 +33,7 @@ using content::BrowserThread;
 
 namespace {
 
-static uint8 ConvertTransferDirection(const UsbEndpointDirection direction) {
+uint8 ConvertTransferDirection(const UsbEndpointDirection direction) {
   switch (direction) {
     case USB_DIRECTION_INBOUND:
       return LIBUSB_ENDPOINT_IN;
@@ -46,7 +45,7 @@ static uint8 ConvertTransferDirection(const UsbEndpointDirection direction) {
   }
 }
 
-static uint8 CreateRequestType(
+uint8 CreateRequestType(
     const UsbEndpointDirection direction,
     const UsbDeviceHandle::TransferRequestType request_type,
     const UsbDeviceHandle::TransferRecipient recipient) {
@@ -85,8 +84,7 @@ static uint8 CreateRequestType(
   return result;
 }
 
-static UsbTransferStatus ConvertTransferStatus(
-    const libusb_transfer_status status) {
+UsbTransferStatus ConvertTransferStatus(const libusb_transfer_status status) {
   switch (status) {
     case LIBUSB_TRANSFER_COMPLETED:
       return USB_TRANSFER_COMPLETED;
@@ -106,21 +104,6 @@ static UsbTransferStatus ConvertTransferStatus(
       NOTREACHED();
       return USB_TRANSFER_ERROR;
   }
-}
-
-static void HandleTransferCompletionFileThread(libusb_transfer* transfer) {
-  UsbDeviceHandle* const device =
-      reinterpret_cast<UsbDeviceHandle*>(transfer->user_data);
-  if (device) device->TransferComplete(transfer);
-  libusb_free_transfer(transfer);
-}
-
-// This function dispatches a completed transfer to its handle.
-// It is called from UsbEventDispatcher using libusb_handle_events_timeout.
-static void LIBUSB_CALL HandleTransferCompletion(libusb_transfer* transfer) {
-  BrowserThread::PostTask(
-      BrowserThread::FILE, FROM_HERE,
-      base::Bind(&HandleTransferCompletionFileThread, transfer));
 }
 
 }  // namespace
@@ -154,23 +137,36 @@ UsbDeviceHandle::~UsbDeviceHandle() {
 
 void UsbDeviceHandle::Close(const base::Callback<void()>& callback) {
   DCHECK(CalledOnValidThread());
-  if (handle_ == 0) return;
+  if (handle_ == NULL) return;
   service_->CloseDeviceHandle(this);
   callback.Run();
 }
 
+void UsbDeviceHandle::HandleTransferCompletionFileThread(
+    PlatformUsbTransferHandle transfer) {
+  UsbDeviceHandle* const device =
+      reinterpret_cast<UsbDeviceHandle*>(transfer->user_data);
+  if (device) device->TransferComplete(transfer);
+  // We should free the transfer even if the device is removed.
+  libusb_free_transfer(transfer);
+}
+
+// This function dispatches a completed transfer to its handle.
+// It is called from UsbEventDispatcher using libusb_handle_events_timeout.
+void LIBUSB_CALL UsbDeviceHandle::HandleTransferCompletion(
+    PlatformUsbTransferHandle transfer) {
+  BrowserThread::PostTask(
+      BrowserThread::FILE, FROM_HERE,
+      base::Bind(&HandleTransferCompletionFileThread, transfer));
+}
+
 void UsbDeviceHandle::TransferComplete(PlatformUsbTransferHandle handle) {
   DCHECK(CalledOnValidThread());
+  DCHECK(handle_ != NULL) << "handle_ can only be reset after "
+      "transfers are unregistered";
 
   Transfer transfer = transfers_[handle];
   transfers_.erase(handle);
-
-  if (handle_ == NULL) {
-    DVLOG(1) << "Device is disconnected: ";
-    transfer.callback
-        .Run(USB_TRANSFER_DISCONNECT, scoped_refptr<net::IOBuffer>(), 0);
-    return;
-  }
 
   if (handle->status != LIBUSB_TRANSFER_COMPLETED &&
       handle->status != LIBUSB_TRANSFER_CANCELLED) {
@@ -240,6 +236,7 @@ void UsbDeviceHandle::TransferComplete(PlatformUsbTransferHandle handle) {
 
     default:
       NOTREACHED() << "Invalid usb transfer type";
+      break;
   }
 
   transfer.callback
@@ -402,17 +399,25 @@ void UsbDeviceHandle::InternalClose() {
   DCHECK(CalledOnValidThread());
   if (handle_ == NULL) return;
 
-  // Cancel all the transfers.
+  // The following four lines makes this function re-enterable in case the
+  // callbacks call InternalClose again by, e.g., removing the UsbDevice from
+  // UsbService.
+  PlatformUsbDeviceHandle handle = handle_;
+  handle_ = NULL;
+  std::map<PlatformUsbTransferHandle, Transfer> transfers;
+  std::swap(transfers, transfers_);
+
+  // Cancel all the transfers before libusb_close.
+  // Otherwise the callback will not be invoked.
   for (std::map<PlatformUsbTransferHandle, Transfer>::iterator it =
-           transfers_.begin();
-       it != transfers_.end(); it++) {
+           transfers.begin();
+       it != transfers.end(); it++) {
     it->first->user_data = NULL;
     it->second.callback
         .Run(USB_TRANSFER_DISCONNECT, scoped_refptr<net::IOBuffer>(), 0);
   }
   transfers_.clear();
-  libusb_close(handle_);
-  handle_ = NULL;
+  libusb_close(handle);
 }
 
 void UsbDeviceHandle::SubmitTransfer(PlatformUsbTransferHandle handle,

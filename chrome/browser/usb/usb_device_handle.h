@@ -13,6 +13,7 @@
 #include "chrome/browser/usb/usb_interface.h"
 #include "net/base/completion_callback.h"
 #include "net/base/io_buffer.h"
+#include "third_party/libusb/src/libusb/libusb.h"
 
 typedef struct libusb_device_handle* PlatformUsbDeviceHandle;
 typedef struct libusb_iso_packet_descriptor* PlatformUsbIsoPacketDescriptor;
@@ -112,12 +113,6 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle>,
 
   virtual void ResetDevice(const base::Callback<void(bool)>& callback);
 
-  // Normal code should not call this function. It is called by the platform's
-  // callback mechanism in such a way that it cannot be made private. Invokes
-  // the callbacks associated with a given transfer, and removes it from the
-  // in-flight transfer set.
-  void TransferComplete(PlatformUsbTransferHandle transfer);
-
  protected:
   // This constructor variant is for use in testing only.
   UsbDeviceHandle();
@@ -141,6 +136,14 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle>,
                   const uint16 product_id, PlatformUsbDeviceHandle handle);
 
   friend class UsbDevice;
+
+  static void HandleTransferCompletionFileThread(
+      PlatformUsbTransferHandle transfer);
+
+  static void LIBUSB_CALL HandleTransferCompletion(
+      PlatformUsbTransferHandle transfer);
+
+  void TransferComplete(PlatformUsbTransferHandle transfer);
 
   // This only called from UsbDevice, thus always from FILE thread.
   void InternalClose();
