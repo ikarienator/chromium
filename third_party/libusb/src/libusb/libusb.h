@@ -1350,6 +1350,8 @@ int LIBUSB_CALL libusb_pollfds_handle_timeouts(libusb_context *ctx);
 int LIBUSB_CALL libusb_get_next_timeout(libusb_context *ctx,
 	struct timeval *tv);
 
+void LIBUSB_CALL libusb_send_event(struct libusb_context *ctx);
+
 /** \ingroup poll
  * File descriptor for polling
  */

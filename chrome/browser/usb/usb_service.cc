@@ -4,6 +4,7 @@
 
 #include "chrome/browser/usb/usb_service.h"
 
+#include <cstring>
 #include <set>
 #include <vector>
 
@@ -32,41 +33,42 @@ using base::RefCountedThreadSafe;
 // currently no way to signal to libusb that any caller into one of the event
 // handler calls should return without handling any events.
 //
+// This class manages the polling thread and assures the thread exits safely.
 // This class is only visible to UsbContext. UsbContext manages its life cycle.
 class UsbEventHandler : public base::PlatformThread::Delegate {
  private:
   friend class UsbContext;
   friend struct base::DefaultDeleter<UsbEventHandler>;
+
   explicit UsbEventHandler(PlatformUsbContext context);
   virtual ~UsbEventHandler();
 
   virtual void ThreadMain() OVERRIDE {
     base::PlatformThread::SetName("UsbEventDispatcher");
     VLOG(1) << "UsbEventDispatcher started.";
-    running_ = true;
-    while (true) {
-      base::AutoLock running_guard(running_lock_);
-      if (!running_)
-        break;
+    while (running_) {
       libusb_handle_events(context_);
     }
     VLOG(1) << "UsbEventDispatcher shutting down.";
   }
 
   void Stop() {
-    base::AutoLock running_guard(running_lock_);
     running_ = false;
+    // Send an event to interrupt the the polling.
+    libusb_send_event(context_);
+    // Wait for the thread to exit.
+    base::PlatformThread::Join(thread_handle);
   }
 
-  base::Lock running_lock_;
   volatile bool running_;
-  PlatformUsbContext context_;
+  const PlatformUsbContext context_;
+  PlatformThreadHandle thread_handle;
   DISALLOW_COPY_AND_ASSIGN(UsbEventHandler);
 };
 
 UsbEventHandler::UsbEventHandler(PlatformUsbContext context)
-    : running_(true), context_(context) {
-  base::PlatformThread::CreateNonJoinable(0, this);
+    : running_(true), context_(context), thread_handle(0) {
+  base::PlatformThread::Create(0, this, &thread_handle);
 }
 
 UsbEventHandler::~UsbEventHandler() {}
@@ -229,7 +231,6 @@ void UsbService::FindDevices(const uint16 vendor_id, const uint16 product_id,
                                         base::Unretained(this),
                                         vendor_id,
                                         product_id,
-                                        interface_id,
                                         devices,
                                         callback));
   } else {

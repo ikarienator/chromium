@@ -1664,6 +1664,15 @@ void API_EXPORTED libusb_exit(struct libusb_context *ctx)
 	free(ctx);
 }
 
+/*
+ * Interrupt the iteration of the event handling thread.
+ */
+void API_EXPORTED libusb_send_event(struct libusb_context *ctx) {
+  unsigned char dummy = 1;
+  USBI_GET_CONTEXT(ctx);
+  usbi_write(ctx->ctrl_pipe[1], &dummy, sizeof(dummy));
+}
+
 /** \ingroup misc
  * Check if the running library has a given capability.
  *
