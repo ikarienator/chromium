@@ -9,6 +9,7 @@
 #include "base/base64.h"
 #include "base/lazy_instance.h"
 #include "base/message_loop/message_loop.h"
+#include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "chrome/browser/devtools/adb/android_rsa.h"
 #include "chrome/browser/devtools/adb/android_usb_socket.h"
@@ -37,8 +38,6 @@ const uint32 kMaxPayload = 4096;
 const uint32 kVersion = 0x01000000;
 
 static const char kHostConnectMessage[] = "host::";
-
-typedef std::vector<scoped_refptr<UsbDevice> > UsbDevices;
 
 base::LazyInstance<AndroidUsbDevices>::Leaky g_devices =
     LAZY_INSTANCE_INITIALIZER;
@@ -212,21 +211,21 @@ void AndroidUsbDevice::Enumerate(Profile* profile,
                                  AndroidUsbDevices* devices) {
   UsbService* service =
       UsbServiceFactory::GetInstance()->GetForProfile(profile);
-  UsbDevices usb_devices;
-  service->EnumerateDevices(&usb_devices);
+
+  std::vector<int> usb_devices;
+  service->GetDevices(&usb_devices);
 
   // GC Android devices with no actual usb device.
   AndroidUsbDevices::iterator it = g_devices.Get().begin();
-  std::set<UsbDevice*> claimed_devices;
+  std::set<int> claimed_devices;
   while (it != g_devices.Get().end()) {
     bool found_device = false;
-    for (UsbDevices::iterator it2 = usb_devices.begin();
-         it2 != usb_devices.end() && !found_device; ++it2) {
-      UsbDevice* usb_device = it2->get();
+    for (size_t i = 0; i < usb_devices.size(); ++i) {
+      int usb_device_id = usb_devices[i];
       AndroidUsbDevice* device = it->get();
-      if (usb_device == device->usb_device_) {
+      if (usb_device_id == device->usb_device_->device()) {
         found_device = true;
-        claimed_devices.insert(*it2);
+        claimed_devices.insert(usb_device_id);
       }
     }
 
@@ -235,14 +234,13 @@ void AndroidUsbDevice::Enumerate(Profile* profile,
     else
       ++it;
   }
-
+// service->OpenDevice(usb_device_id)
   // Add new devices.
   AndroidUsbDevices new_devices;
-  for (UsbDevices::iterator it = usb_devices.begin(); it != usb_devices.end();
-       ++it) {
-    UsbDevice* usb_device = *it;
-    if (claimed_devices.find(usb_device) != claimed_devices.end())
+  for (size_t i = 0; i < usb_devices.size(); ++i) {
+    if (ContainsKey(claimed_devices, usb_devices[i]))
       continue;
+    scoped_refptr<UsbDevice> usb_device = service->OpenDevice(usb_devices[i]);
     scoped_refptr<UsbConfigDescriptor> config = new UsbConfigDescriptor();
     usb_device->ListInterfaces(config.get(), base::Bind(&BoolNoop));
     for (size_t j = 0; j < config->GetNumInterfaces(); ++j) {

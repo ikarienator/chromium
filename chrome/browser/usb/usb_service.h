@@ -10,26 +10,31 @@
 #include <vector>
 
 #include "base/basictypes.h"
+#include "base/threading/non_thread_safe.h"
 #include "base/threading/platform_thread.h"
 #include "chrome/browser/usb/usb_device.h"
 #include "components/browser_context_keyed_service/browser_context_keyed_service.h"
 #include "third_party/libusb/src/libusb/libusb.h"
 
+class UsbContext;
+class UsbDeviceStub;
 class UsbEventHandler;
+class RefCountedPlatformUsbDevice;
+
 typedef libusb_context* PlatformUsbContext;
 
 // The USB service handles creating and managing an event handler thread that is
 // used to manage and dispatch USB events. It is also responsbile for device
 // discovery on the system, which allows it to re-use device handles to prevent
 // competition for the same USB device.
-class UsbService : public BrowserContextKeyedService {
+class UsbService : public BrowserContextKeyedService,
+                   public base::NonThreadSafe {
  public:
   UsbService();
   virtual ~UsbService();
 
-  // Cleanup must be invoked before the service is destroyed. It interrupts the
-  // event handling thread and disposes of open devices.
-  void Cleanup();
+  // BrowserContextKeyedService:
+  virtual void Shutdown() OVERRIDE;
 
   // Find all of the devices attached to the system that are identified by
   // |vendor_id| and |product_id|, inserting them into |devices|. Clears
@@ -37,38 +42,27 @@ class UsbService : public BrowserContextKeyedService {
   void FindDevices(const uint16 vendor_id,
                    const uint16 product_id,
                    int interface_id,
-                   std::vector<scoped_refptr<UsbDevice> >* devices,
+                   std::vector<int>* devices,
                    const base::Callback<void()>& callback);
 
-  // Find all of the devices attached to the system, inserting them into
+  // Get all of the devices attached to the system, inserting them into
   // |devices|. Clears |devices| before use.
-  void EnumerateDevices(std::vector<scoped_refptr<UsbDevice> >* devices);
+  void GetDevices(std::vector<int>* devices);
+
+  // Open a device for further communication.
+  scoped_refptr<UsbDevice> OpenDevice(int device);
 
   // This function should not be called by normal code. It is invoked by a
   // UsbDevice's Close function and disposes of the associated platform handle.
   void CloseDevice(scoped_refptr<UsbDevice> device);
 
+  // Schedule an update to USB device info.
+  void ScheduleRefreshDevices();
+
  private:
-  // RefCountedPlatformUsbDevice takes care of managing the underlying reference
-  // count of a single PlatformUsbDevice. This allows us to construct things
-  // like vectors of RefCountedPlatformUsbDevices and not worry about having to
-  // explicitly unreference them after use.
-  class RefCountedPlatformUsbDevice {
-   public:
-    explicit RefCountedPlatformUsbDevice(PlatformUsbDevice device);
-    RefCountedPlatformUsbDevice(const RefCountedPlatformUsbDevice& other);
-    virtual ~RefCountedPlatformUsbDevice();
-    PlatformUsbDevice device();
-
-   private:
-    PlatformUsbDevice device_;
-  };
-
-  typedef std::vector<RefCountedPlatformUsbDevice> DeviceVector;
-
   // Return true if |device|'s vendor and product identifiers match |vendor_id|
   // and |product_id|.
-  static bool DeviceMatches(PlatformUsbDevice device,
+  static bool DeviceMatches(const UsbDeviceStub* device,
                             const uint16 vendor_id,
                             const uint16 product_id);
 
@@ -78,26 +72,27 @@ class UsbService : public BrowserContextKeyedService {
   // FindDevices.
   void FindDevicesImpl(const uint16 vendor_id,
                        const uint16 product_id,
-                       std::vector<scoped_refptr<UsbDevice> >* devices,
+                       std::vector<int>* devices,
                        const base::Callback<void()>& callback,
                        bool success);
 
-  // Populates |output| with the result of enumerating all attached USB devices.
-  void EnumerateDevicesImpl(DeviceVector* output);
+  // Enumerate USB devices from OS and Update devices_ map.
+  void RefreshDevices();
 
-  // If a UsbDevice wrapper corresponding to |device| has already been created,
-  // returns it. Otherwise, opens the device, creates a wrapper, and associates
-  // the wrapper with the device internally.
-  UsbDevice* LookupOrCreateDevice(PlatformUsbDevice device);
+  scoped_refptr<UsbContext> context_;
 
-  PlatformUsbContext context_;
-  UsbEventHandler* event_handler_;
+  // The next id of device. Can only be accessed from FILE thread.
+  int next_unique_id_;
 
-  // The devices_ map contains scoped_refptrs to all open devices, indicated by
-  // their vendor and product id. This allows for reusing an open device without
-  // creating another platform handle for it.
-  typedef std::map<PlatformUsbDevice, scoped_refptr<UsbDevice> > DeviceMap;
+  bool device_enumeration_scheduled_;
+
+  // The devices_ map contains all connected devices.
+  // They are not to be used directly outside UsbService. Instead, FindDevice
+  // methods returns their id for accessing them.
+  typedef std::map<PlatformUsbDevice, UsbDeviceStub*> DeviceMap;
+  typedef std::map<int, UsbDeviceStub*> DeviceMapById;
   DeviceMap devices_;
+  DeviceMapById devices_by_id_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbService);
 };
