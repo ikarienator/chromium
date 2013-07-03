@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_EXTENSIONS_API_USB_USB_API_H_
 
 #include <string>
+#include <vector>
 
 #include "base/memory/ref_counted.h"
 #include "chrome/browser/extensions/api/api_function.h"
@@ -70,10 +71,13 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
   virtual void AsyncWorkStart() OVERRIDE;
 
  private:
+  void OpenDevices();
   void OnCompleted();
 
   scoped_ptr<base::ListValue> result_;
+  std::vector<int> device_ids_;
   std::vector<scoped_refptr<UsbDevice> > devices_;
+  UsbService* service_;
   scoped_ptr<extensions::api::usb::FindDevices::Params> parameters_;
 };
 
@@ -261,6 +265,7 @@ class UsbResetDeviceFunction : public UsbAsyncApiFunction {
   // FILE thread.
   void OnStartResest(UsbDeviceResource* resource);
   void OnCompletedFileThread(bool success);
+  void OnClosed();
 
   // IO thread.
   void OnCompleted(bool success);

@@ -299,8 +299,11 @@ static base::DictionaryValue* CreateTransferInfo(
     size_t length) {
   base::DictionaryValue* result = new base::DictionaryValue();
   result->SetInteger(kResultCodeKey, status);
-  result->Set(kDataKey, base::BinaryValue::CreateWithCopiedBuffer(data->data(),
-                                                                  length));
+  if (data) {
+    result->Set(
+        kDataKey,
+        base::BinaryValue::CreateWithCopiedBuffer(data->data(), length));
+  }
   return result;
 }
 
@@ -398,7 +401,7 @@ bool UsbAsyncApiTransferFunction::ConvertRecipientSafely(
   return converted;
 }
 
-UsbFindDevicesFunction::UsbFindDevicesFunction() {}
+UsbFindDevicesFunction::UsbFindDevicesFunction() : service_(NULL) {}
 
 UsbFindDevicesFunction::~UsbFindDevicesFunction() {}
 
@@ -409,6 +412,12 @@ void UsbFindDevicesFunction::SetDeviceForTest(UsbDevice* device) {
 bool UsbFindDevicesFunction::Prepare() {
   parameters_ = FindDevices::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters_.get());
+  if (device_for_test_) return true;
+  service_ = UsbServiceFactory::GetForProfile(profile());
+  if (!service_) {
+    LOG(ERROR) << "Could not get UsbService for active profile.";
+    return false;
+  }
   return true;
 }
 
@@ -420,7 +429,6 @@ void UsbFindDevicesFunction::AsyncWorkStart() {
         extension_->id(),
         device_for_test_);
 
-    Device device;
     result_->Append(PopulateDevice(manager_->Add(resource), 0, 0));
     SetResult(result_.release());
     AsyncWorkCompleted();
@@ -440,25 +448,34 @@ void UsbFindDevicesFunction::AsyncWorkStart() {
     return;
   }
 
-  UsbService* const service = UsbServiceFactory::GetInstance()->GetForProfile(
-      profile());
-  if (!service) {
-    LOG(WARNING) << "Could not get UsbService for active profile.";
-    CompleteWithError(kErrorNoDevice);
-    return;
-  }
+  BrowserThread::PostTask(
+      BrowserThread::FILE,
+      FROM_HERE,
+      base::Bind(&UsbService::FindDevices,
+                 base::Unretained(service_),
+                 vendor_id,
+                 product_id,
+                 interface_id,
+                 &device_ids_,
+                 base::Bind(&UsbFindDevicesFunction::OpenDevices, this)));
+}
 
-  service->FindDevices(vendor_id, product_id, interface_id, &devices_,
-                       base::Bind(&UsbFindDevicesFunction::OnCompleted, this));
+void UsbFindDevicesFunction::OpenDevices() {
+  for (size_t i = 0; i < device_ids_.size(); ++i)
+    devices_.push_back(service_->OpenDevice(device_ids_[i]));
+
+  BrowserThread::PostTask(
+      BrowserThread::IO,
+      FROM_HERE,
+      base::Bind(&UsbFindDevicesFunction::OnCompleted, this));
 }
 
 void UsbFindDevicesFunction::OnCompleted() {
   for (size_t i = 0; i < devices_.size(); ++i) {
-    UsbDevice* const device = devices_[i].get();
+    scoped_refptr<UsbDevice> device = devices_[i];
     UsbDeviceResource* const resource =
         new UsbDeviceResource(extension_->id(), device);
 
-    Device js_device;
     result_->Append(PopulateDevice(manager_->Add(resource),
                                    parameters_->options.vendor_id,
                                    parameters_->options.product_id));
@@ -487,8 +504,9 @@ void UsbListInterfacesFunction::AsyncWorkStart() {
   }
 
   config_ = new UsbConfigDescriptor();
-  resource->device()->ListInterfaces(
-      config_.get(), base::Bind(&UsbListInterfacesFunction::OnCompleted, this));
+  resource->ListInterfaces(
+      config_.get(),
+      base::Bind(&UsbListInterfacesFunction::OnCompleted, this));
 }
 
 void UsbListInterfacesFunction::OnCompleted(bool success) {
@@ -611,8 +629,7 @@ void UsbCloseDeviceFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->Close(base::Bind(&UsbCloseDeviceFunction::OnCompleted,
-                                     this));
+  resource->Close(base::Bind(&UsbCloseDeviceFunction::OnCompleted, this));
   RemoveUsbDeviceResource(parameters_->device.handle);
 }
 
@@ -638,7 +655,8 @@ void UsbClaimInterfaceFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->ClaimInterface(parameters_->interface_number,
+  resource->ClaimInterface(
+      parameters_->interface_number,
       base::Bind(&UsbClaimInterfaceFunction::OnCompleted, this));
 }
 
@@ -666,7 +684,8 @@ void UsbReleaseInterfaceFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->ReleaseInterface(parameters_->interface_number,
+  resource->ReleaseInterface(
+      parameters_->interface_number,
       base::Bind(&UsbReleaseInterfaceFunction::OnCompleted, this));
 }
 
@@ -696,7 +715,7 @@ void UsbSetInterfaceAlternateSettingFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->SetInterfaceAlternateSetting(
+  resource->SetInterfaceAlternateSetting(
       parameters_->interface_number,
       parameters_->alternate_setting,
       base::Bind(&UsbSetInterfaceAlternateSettingFunction::OnCompleted, this));
@@ -752,7 +771,7 @@ void UsbControlTransferFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->ControlTransfer(
+  resource->ControlTransfer(
       direction,
       request_type,
       recipient,
@@ -805,13 +824,13 @@ void UsbBulkTransferFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()
-      ->BulkTransfer(direction,
-                     transfer.endpoint,
-                     buffer.get(),
-                     size,
-                     0,
-                     base::Bind(&UsbBulkTransferFunction::OnCompleted, this));
+  resource->BulkTransfer(
+      direction,
+      transfer.endpoint,
+      buffer.get(),
+      size,
+      0,
+      base::Bind(&UsbBulkTransferFunction::OnCompleted, this));
 }
 
 UsbInterruptTransferFunction::UsbInterruptTransferFunction() {}
@@ -854,7 +873,7 @@ void UsbInterruptTransferFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->InterruptTransfer(
+  resource->InterruptTransfer(
       direction,
       transfer.endpoint,
       buffer.get(),
@@ -919,7 +938,7 @@ void UsbIsochronousTransferFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->IsochronousTransfer(
+  resource->IsochronousTransfer(
       direction,
       generic_transfer.endpoint,
       buffer.get(),
@@ -948,22 +967,24 @@ void UsbResetDeviceFunction::AsyncWorkStart() {
     return;
   }
 
-  BrowserThread::PostTask(BrowserThread::FILE, FROM_HERE,
-                          base::Bind(&UsbResetDeviceFunction::OnStartResest,
-                                     this, resource));
+  BrowserThread::PostTask(
+      BrowserThread::FILE,
+      FROM_HERE,
+      base::Bind(&UsbResetDeviceFunction::OnStartResest, this, resource));
 }
 
 void UsbResetDeviceFunction::OnStartResest(UsbDeviceResource* resource) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
-  resource->device()->ResetDevice(
+  resource->ResetDevice(
       base::Bind(&UsbResetDeviceFunction::OnCompletedFileThread, this));
 }
 
 void UsbResetDeviceFunction::OnCompletedFileThread(bool success) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
-  BrowserThread::PostTask(BrowserThread::IO, FROM_HERE,
-                          base::Bind(&UsbResetDeviceFunction::OnCompleted,
-                                     this, success));
+  BrowserThread::PostTask(
+      BrowserThread::IO,
+      FROM_HERE,
+      base::Bind(&UsbResetDeviceFunction::OnCompleted, this, success));
   return;
 }
 
@@ -978,12 +999,18 @@ void UsbResetDeviceFunction::OnCompleted(bool success) {
     }
     // Close the device now because the handle is invalid after an
     // unsuccessful reset.
-    resource->device()->Close(
-        base::Bind(&UsbResetDeviceFunction::OnError, this));
+    resource->Close(base::Bind(&UsbResetDeviceFunction::OnClosed, this));
     return;
   }
   SetResult(Value::CreateBooleanValue(true));
   AsyncWorkCompleted();
+}
+
+void UsbResetDeviceFunction::OnClosed() {
+  BrowserThread::PostTask(
+      BrowserThread::IO,
+      FROM_HERE,
+      base::Bind(&UsbResetDeviceFunction::OnError, this));
 }
 
 void UsbResetDeviceFunction::OnError() {
