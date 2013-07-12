@@ -30,7 +30,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <libkern/OSAtomic.h>
 
 #include <mach/clock.h>
 #include <mach/clock_types.h>
@@ -56,7 +55,7 @@ static clock_serv_t clock_realtime;
 static clock_serv_t clock_monotonic;
 
 static CFRunLoopRef libusb_darwin_acfl = NULL; /* async cf loop */
-static volatile int32_t initCount = 0;
+static int initCount = 0;
 
 /* async event thread */
 static pthread_t libusb_darwin_at;
@@ -312,12 +311,6 @@ static void *event_thread_main (void *arg0) {
   struct libusb_context *ctx = (struct libusb_context *)arg0;
   CFRunLoopRef runloop;
 
-  /* Set this thread's name, so it can be seen in the debugger
-     and crash reports. */
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-  pthread_setname_np ("org.libusb.device-detach");
-#endif
-
   /* Tell the Objective-C garbage collector about this thread.
      This is required because, unlike NSThreads, pthreads are
      not automatically registered. Although we don't use
@@ -339,7 +332,7 @@ static void *event_thread_main (void *arg0) {
   /* add the notification port to the run loop */
   libusb_notification_port     = IONotificationPortCreate (kIOMasterPortDefault);
   libusb_notification_cfsource = IONotificationPortGetRunLoopSource (libusb_notification_port);
-  CFRunLoopAddSource(runloop, libusb_notification_cfsource, kCFRunLoopDefaultMode);
+  CFRunLoopAddSource(CFRunLoopGetCurrent (), libusb_notification_cfsource, kCFRunLoopDefaultMode);
 
   /* create notifications for removed devices */
   kresult = IOServiceAddMatchingNotification (libusb_notification_port, kIOTerminatedNotification,
@@ -358,9 +351,11 @@ static void *event_thread_main (void *arg0) {
 
   usbi_info (ctx, "thread ready to receive events");
 
-  /* signal the main thread that the async runloop has been created. */
+  /* let the main thread know about the async runloop */
+  libusb_darwin_acfl = CFRunLoopGetCurrent ();
+
+  /* signal the main thread */
   pthread_mutex_lock (&libusb_darwin_at_mutex);
-  libusb_darwin_acfl = runloop;
   pthread_cond_signal (&libusb_darwin_at_cond);
   pthread_mutex_unlock (&libusb_darwin_at_mutex);
 
@@ -383,7 +378,7 @@ static void *event_thread_main (void *arg0) {
 static int darwin_init(struct libusb_context *ctx) {
   host_name_port_t host_self;
 
-  if (OSAtomicIncrement32Barrier(&initCount) == 1) {
+  if (!(initCount++)) {
     /* create the clocks that will be used */
 
     host_self = mach_host_self();
@@ -406,11 +401,11 @@ static int darwin_init(struct libusb_context *ctx) {
 }
 
 static void darwin_exit (void) {
-  if (OSAtomicDecrement32Barrier(&initCount) == 0) {
+  if (!(--initCount)) {
     mach_port_deallocate(mach_task_self(), clock_realtime);
     mach_port_deallocate(mach_task_self(), clock_monotonic);
 
-    /* stop the async runloop and wait for the thread to terminate. */
+    /* stop the async runloop */
     CFRunLoopStop (libusb_darwin_acfl);
     pthread_join (libusb_darwin_at, NULL);
   }
@@ -600,7 +595,8 @@ static int darwin_cache_device_descriptor (struct libusb_context *ctx, struct li
       /* received an overrun error but we still received a device descriptor */
       ret = kIOReturnSuccess;
 
-    if (kIOReturnSuccess == ret && (0 == priv->dev_descriptor.bNumConfigurations ||
+    if (kIOReturnSuccess == ret && (0 == priv->dev_descriptor.idProduct ||
+				    0 == priv->dev_descriptor.bNumConfigurations ||
 				    0 == priv->dev_descriptor.bcdUSB)) {
       /* work around for incorrectly configured devices */
       if (try_reconfigure && is_open) {
@@ -1267,6 +1263,7 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
   struct darwin_device_handle_priv *priv = (struct darwin_device_handle_priv *)transfer->dev_handle->os_priv;
 
   IOReturn               ret;
+  uint8_t                is_read; /* 0 = we're reading, 1 = we're writing */
   uint8_t                transferType;
   /* None of the values below are used in libusb for bulk transfers */
   uint8_t                direction, number, interval, pipeRef, iface;
@@ -1274,8 +1271,8 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
 
   struct darwin_interface *cInterface;
 
-  if (IS_XFEROUT(transfer) && transfer->flags & LIBUSB_TRANSFER_ADD_ZERO_PACKET)
-    return LIBUSB_ERROR_NOT_SUPPORTED;
+  /* are we reading or writing? */
+  is_read = transfer->endpoint & LIBUSB_ENDPOINT_IN;
 
   if (ep_to_pipeRef (transfer->dev_handle, transfer->endpoint, &pipeRef, &iface) != 0) {
     usbi_err (TRANSFER_CTX (transfer), "endpoint not found on any open interface");
@@ -1291,7 +1288,7 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
   /* submit the request */
   /* timeouts are unavailable on interrupt endpoints */
   if (transferType == kUSBInterrupt) {
-    if (IS_XFERIN(transfer))
+    if (is_read)
       ret = (*(cInterface->interface))->ReadPipeAsync(cInterface->interface, pipeRef, transfer->buffer,
 						      transfer->length, darwin_async_io_callback, itransfer);
     else
@@ -1300,7 +1297,7 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
   } else {
     itransfer->flags |= USBI_TRANSFER_OS_HANDLES_TIMEOUT;
 
-    if (IS_XFERIN(transfer))
+    if (is_read)
       ret = (*(cInterface->interface))->ReadPipeAsyncTO(cInterface->interface, pipeRef, transfer->buffer,
 							transfer->length, transfer->timeout, transfer->timeout,
 							darwin_async_io_callback, (void *)itransfer);
@@ -1311,7 +1308,7 @@ static int submit_bulk_transfer(struct usbi_transfer *itransfer) {
   }
 
   if (ret)
-    usbi_err (TRANSFER_CTX (transfer), "bulk transfer failed (dir = %s): %s (code = 0x%08x)", IS_XFERIN(transfer) ? "In" : "Out",
+    usbi_err (TRANSFER_CTX (transfer), "bulk transfer failed (dir = %s): %s (code = 0x%08x)", is_read ? "In" : "Out",
 	       darwin_error_str(ret), ret);
 
   return darwin_to_libusb (ret);
@@ -1323,12 +1320,16 @@ static int submit_iso_transfer(struct usbi_transfer *itransfer) {
   struct darwin_device_handle_priv *priv = (struct darwin_device_handle_priv *)transfer->dev_handle->os_priv;
 
   IOReturn                kresult;
+  uint8_t                 is_read; /* 0 = we're writing, 1 = we're reading */
   uint8_t                 pipeRef, iface;
   UInt64                  frame;
   AbsoluteTime            atTime;
   int                     i;
 
   struct darwin_interface *cInterface;
+
+  /* are we reading or writing? */
+  is_read = transfer->endpoint & LIBUSB_ENDPOINT_IN;
 
   /* construct an array of IOUSBIsocFrames, reuse the old one if possible */
   if (tpriv->isoc_framelist && tpriv->num_iso_packets != transfer->num_iso_packets) {
@@ -1373,7 +1374,7 @@ static int submit_iso_transfer(struct usbi_transfer *itransfer) {
     frame = cInterface->frames[transfer->endpoint];
 
   /* submit the request */
-  if (IS_XFERIN(transfer))
+  if (is_read)
     kresult = (*(cInterface->interface))->ReadIsochPipeAsync(cInterface->interface, pipeRef, transfer->buffer, frame,
 							     transfer->num_iso_packets, tpriv->isoc_framelist, darwin_async_io_callback,
 							     itransfer);
@@ -1385,7 +1386,7 @@ static int submit_iso_transfer(struct usbi_transfer *itransfer) {
   cInterface->frames[transfer->endpoint] = frame + transfer->num_iso_packets / 8;
 
   if (kresult != kIOReturnSuccess) {
-    usbi_err (TRANSFER_CTX (transfer), "isochronous transfer failed (dir: %s): %s", IS_XFERIN(transfer) ? "In" : "Out",
+    usbi_err (TRANSFER_CTX (transfer), "isochronous transfer failed (dir: %s): %s", is_read ? "In" : "Out",
 	       darwin_error_str(kresult));
     free (tpriv->isoc_framelist);
     tpriv->isoc_framelist = NULL;
@@ -1547,7 +1548,7 @@ static void darwin_async_io_callback (void *refcon, IOReturn result, void *arg0)
 
   usbi_info (ITRANSFER_CTX (itransfer), "an async io operation has completed");
 
-  size = (UInt32) (uintptr_t) arg0;
+  size = (UInt32) arg0;
 
   /* send a completion message to the device's file descriptor */
   message = MESSAGE_ASYNC_IO_COMPLETE;

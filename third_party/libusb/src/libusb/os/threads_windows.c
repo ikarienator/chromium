@@ -99,6 +99,7 @@ int usbi_cond_destroy(usbi_cond_t *cond) {
 		prev_pos = pos;
 	}
 	free(prev_pos);
+	prev_pos = pos = NULL;
 
 	return 0;
 }
@@ -142,7 +143,7 @@ static int __inline usbi_cond_intwait(usbi_cond_t *cond,
 		}
 	}
 	if(!found) {
-		pos      = (struct usbi_cond_perthread*) calloc(1, sizeof(struct usbi_cond_perthread));
+		pos      = malloc(sizeof(struct usbi_cond_perthread));
 		if(!pos) return ((errno=ENOMEM)); // This errno is not POSIX-allowed.
 		pos->tid = tid;
 		pos->event = CreateEvent(NULL, FALSE, FALSE, NULL); // auto-reset.

@@ -1281,8 +1281,6 @@ void API_EXPORTED libusb_free_transfer(struct libusb_transfer *transfer)
  * \returns 0 on success
  * \returns LIBUSB_ERROR_NO_DEVICE if the device has been disconnected
  * \returns LIBUSB_ERROR_BUSY if the transfer has already been submitted.
- * \returns LIBUSB_ERROR_NOT_SUPPORTED if the transfer flags are not supported
- * by the operating system.
  * \returns another LIBUSB_ERROR code on other failure
  */
 int API_EXPORTED libusb_submit_transfer(struct libusb_transfer *transfer)
@@ -1353,11 +1351,8 @@ int API_EXPORTED libusb_cancel_transfer(struct libusb_transfer *transfer)
 	usbi_mutex_lock(&itransfer->lock);
 	r = usbi_backend->cancel_transfer(itransfer);
 	if (r < 0) {
-		if (r != LIBUSB_ERROR_NOT_FOUND)
-			usbi_err(TRANSFER_CTX(transfer),
-				"cancel transfer failed error %d", r);
-		else
-			usbi_dbg("cancel transfer failed error %d", r);
+		usbi_err(TRANSFER_CTX(transfer),
+			"cancel transfer failed error %d", r);
 
 		if (r == LIBUSB_ERROR_NO_DEVICE)
 			itransfer->flags |= USBI_TRANSFER_DEVICE_DISAPPEARED;
@@ -1444,7 +1439,7 @@ int usbi_handle_transfer_completion(struct usbi_transfer *itransfer,
 		USBI_TRANSFER_TO_LIBUSB_TRANSFER(itransfer);
 	struct libusb_context *ctx = TRANSFER_CTX(transfer);
 	uint8_t flags;
-	int r = 0;
+	int r;
 
 	/* FIXME: could be more intelligent with the timerfd here. we don't need
 	 * to disarm the timerfd if there was no timer running, and we only need
@@ -1453,13 +1448,12 @@ int usbi_handle_transfer_completion(struct usbi_transfer *itransfer,
 
 	usbi_mutex_lock(&ctx->flying_transfers_lock);
 	list_del(&itransfer->list);
-	if (usbi_using_timerfd(ctx))
-		r = arm_timerfd_for_next_timeout(ctx);
+	r = arm_timerfd_for_next_timeout(ctx);
 	usbi_mutex_unlock(&ctx->flying_transfers_lock);
 
-	if (usbi_using_timerfd(ctx)) {
-		if (r < 0)
-			return r;
+	if (r < 0) {
+		return r;
+	} else if (r == 0) {
 		r = disarm_timerfd(ctx);
 		if (r < 0)
 			return r;
@@ -1479,7 +1473,6 @@ int usbi_handle_transfer_completion(struct usbi_transfer *itransfer,
 	flags = transfer->flags;
 	transfer->status = status;
 	transfer->actual_length = itransfer->transferred;
-	usbi_dbg("transfer %p has callback %p", transfer, transfer->callback);
 	if (transfer->callback)
 		transfer->callback(transfer);
 	/* transfer might have been freed by the above call, do not use from
@@ -2027,7 +2020,7 @@ retry:
 		return r;
 	}
 
-	/* another thread is doing event handling. wait for thread events that
+	/* another thread is doing event handling. wait for pthread events that
 	 * notify event completion. */
 	libusb_lock_event_waiters(ctx);
 
@@ -2404,8 +2397,6 @@ out:
 	usbi_mutex_unlock(&ctx->pollfds_lock);
 	return (const struct libusb_pollfd **) ret;
 #else
-	usbi_err(ctx, "external polling of libusb's internal descriptors "\
-		"is not yet supported on Windows platforms");
 	return NULL;
 #endif
 }
