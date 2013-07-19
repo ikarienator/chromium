@@ -90,7 +90,8 @@
           ],
           'include_dirs': [
             'src/msvc',
-          ]
+          ],
+          'msvs_disabled_warnings': [4267],
         }],
       ],
     },
