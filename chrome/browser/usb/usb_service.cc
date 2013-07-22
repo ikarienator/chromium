@@ -23,12 +23,14 @@
 
 using std::vector;
 
+namespace {
+
 // The UsbEventHandler works around a design flaw in the libusb interface. There
 // is currently no way to signal to libusb that any caller into one of the event
 // handler calls should return without handling any events.
 class UsbEventHandler : public base::PlatformThread::Delegate {
  public:
-  explicit UsbEventHandler(PlatformUsbContext context)
+  explicit UsbEventHandler(libusb_context* context)
       : running_(true),
         context_(context),
         thread_handle_(0),
@@ -57,23 +59,38 @@ class UsbEventHandler : public base::PlatformThread::Delegate {
 
  private:
   volatile bool running_;
-  PlatformUsbContext context_;
+  libusb_context* context_;
   base::PlatformThreadHandle thread_handle_;
   base::WaitableEvent started_event_;
   DISALLOW_COPY_AND_ASSIGN(UsbEventHandler);
 };
 
-UsbService::UsbService() {
-  libusb_init(&context_);
-  event_handler_ = new UsbEventHandler(context_);
-}
+}  // namespace
 
-UsbService::~UsbService() {
-  event_handler_->Stop();
-  delete event_handler_;
-  libusb_exit(context_);
-  context_ = NULL;
-}
+// Ref-counted wrapper for libusb_context*.
+// It also manages the life-cycle of UsbEventHandler
+class UsbContext : public base::RefCountedThreadSafe<UsbContext> {
+ public:
+  UsbContext() : context_(NULL) {
+    CHECK_EQ(0, libusb_init(&context_)) << "Cannot initialize libusb";
+    event_handler_.reset(new UsbEventHandler(context_));
+  }
+  libusb_context* context() const { return context_; }
+
+ private:
+  friend class base::RefCountedThreadSafe<UsbContext>;
+  virtual ~UsbContext() {
+    event_handler_->Stop();
+    event_handler_.reset(NULL);
+    libusb_exit(context_);
+  }
+  libusb_context* context_;
+  scoped_ptr<UsbEventHandler> event_handler_;
+};
+
+UsbService::UsbService() : context_(new UsbContext()) {}
+
+UsbService::~UsbService() {}
 
 UsbService* UsbService::GetInstance() {
   return Singleton<UsbService>::get();
@@ -84,7 +101,6 @@ void UsbService::FindDevices(const uint16 vendor_id,
                              int interface_id,
                              vector<scoped_refptr<UsbDeviceHandle> >* devices,
                              const base::Callback<void()>& callback) {
-  DCHECK(event_handler_) << "FindDevices called after event handler stopped.";
 #if defined(OS_CHROMEOS)
   // ChromeOS builds on non-ChromeOS machines (dev) should not attempt to
   // use permission broker.
@@ -161,8 +177,6 @@ void UsbService::FindDevicesImpl(
 }
 
 void UsbService::CloseDevice(scoped_refptr<UsbDeviceHandle> device) {
-  DCHECK(event_handler_) << "CloseDevice called after event handler stopped.";
-
   PlatformUsbDevice platform_device = libusb_get_device(device->handle());
   if (!ContainsKey(devices_, platform_device)) {
     LOG(WARNING) << "CloseDevice called for device we're not tracking!";
@@ -195,7 +209,9 @@ void UsbService::EnumerateDevicesImpl(DeviceVector* output) {
   STLClearObject(output);
 
   libusb_device** devices = NULL;
-  const ssize_t device_count = libusb_get_device_list(context_, &devices);
+  const ssize_t device_count = libusb_get_device_list(
+      context_->context(),
+      &devices);
   if (device_count < 0)
     return;
 

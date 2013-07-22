@@ -13,13 +13,9 @@
 #include "base/memory/singleton.h"
 #include "base/threading/platform_thread.h"
 #include "chrome/browser/usb/usb_device_handle.h"
-#include "third_party/libusb/src/libusb/libusb.h"
 
-class UsbEventHandler;
 template <typename T> struct DefaultSingletonTraits;
-struct libusb_context;
-
-typedef struct libusb_context* PlatformUsbContext;
+class UsbContext;
 
 // The USB service handles creating and managing an event handler thread that is
 // used to manage and dispatch USB events. It is also responsbile for device
@@ -95,8 +91,7 @@ class UsbService {
   // the wrapper with the device internally.
   UsbDeviceHandle* LookupOrCreateDevice(PlatformUsbDevice device);
 
-  PlatformUsbContext context_;
-  UsbEventHandler* event_handler_;
+  scoped_refptr<UsbContext> context_;
 
   // The devices_ map contains scoped_refptrs to all open devices, indicated by
   // their vendor and product id. This allows for reusing an open device without
