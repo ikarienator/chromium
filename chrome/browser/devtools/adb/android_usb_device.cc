@@ -15,6 +15,7 @@
 #include "chrome/browser/usb/usb_interface.h"
 #include "chrome/browser/usb/usb_service.h"
 #include "chrome/browser/usb/usb_service_factory.h"
+#include "chrome/browser/usb/usb_transfer.h"
 #include "crypto/rsa_private_key.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_errors.h"
@@ -346,9 +347,10 @@ void AndroidUsbDevice::ProcessOutgoing() {
   BulkMessage message = outgoing_queue_.front();
   outgoing_queue_.pop();
   DumpMessage(true, message.first->data(), message.second);
-  usb_device_->BulkTransfer(USB_DIRECTION_OUTBOUND, outbound_address_,
-      message.first, message.second, kUsbTimeout,
-      base::Bind(&AndroidUsbDevice::OutgoingMessageSent, this));
+  UsbTransfer::CreateBulkTransfer(USB_DIRECTION_OUTBOUND, outbound_address_,
+      message.first, message.second, kUsbTimeout)->
+          Submit(usb_device_,
+                 base::Bind(&AndroidUsbDevice::OutgoingMessageSent, this));
 }
 
 void AndroidUsbDevice::OutgoingMessageSent(UsbTransferStatus status,
@@ -367,9 +369,10 @@ void AndroidUsbDevice::ReadHeader(bool initial) {
   if (!initial && HasOneRef())
     return;  // Stop polling.
   scoped_refptr<net::IOBuffer> buffer = new net::IOBuffer(kHeaderSize);
-  usb_device_->BulkTransfer(USB_DIRECTION_INBOUND, inbound_address_,
-      buffer, kHeaderSize, kUsbTimeout,
-      base::Bind(&AndroidUsbDevice::ParseHeader, this));
+  UsbTransfer::CreateBulkTransfer(USB_DIRECTION_INBOUND, inbound_address_,
+      buffer, kHeaderSize, kUsbTimeout)->
+          Submit(usb_device_,
+                 base::Bind(&AndroidUsbDevice::ParseHeader, this));
 }
 
 void AndroidUsbDevice::ParseHeader(UsbTransferStatus status,
@@ -416,9 +419,10 @@ void AndroidUsbDevice::ReadBody(scoped_refptr<AdbMessage> message,
                                 uint32 data_length,
                                 uint32 data_check) {
   scoped_refptr<net::IOBuffer> buffer = new net::IOBuffer(data_length);
-  usb_device_->BulkTransfer(USB_DIRECTION_INBOUND, inbound_address_,
-      buffer, data_length, kUsbTimeout,
-      base::Bind(&AndroidUsbDevice::ParseBody, this, message, data_length,
+  UsbTransfer::CreateBulkTransfer(USB_DIRECTION_INBOUND, inbound_address_,
+      buffer, data_length, kUsbTimeout)->
+          Submit(usb_device_,
+                 base::Bind(&AndroidUsbDevice::ParseBody, this, message, data_length,
                  data_check));
 }
 

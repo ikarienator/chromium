@@ -11,6 +11,7 @@
 #include "chrome/browser/extensions/api/api_function.h"
 #include "chrome/browser/extensions/api/api_resource_manager.h"
 #include "chrome/browser/usb/usb_device.h"
+#include "chrome/browser/usb/usb_transfer.h"
 #include "chrome/common/extensions/api/usb.h"
 #include "net/base/io_buffer.h"
 
@@ -46,9 +47,9 @@ class UsbAsyncApiTransferFunction : public UsbAsyncApiFunction {
   bool ConvertDirectionSafely(const extensions::api::usb::Direction& input,
                               UsbEndpointDirection* output);
   bool ConvertRequestTypeSafely(const extensions::api::usb::RequestType& input,
-                              UsbDevice::TransferRequestType* output);
+                              UsbTransfer::TransferRequestType* output);
   bool ConvertRecipientSafely(const extensions::api::usb::Recipient& input,
-                              UsbDevice::TransferRecipient* output);
+                              UsbTransfer::TransferRecipient* output);
 
   void OnCompleted(UsbTransferStatus status,
                    scoped_refptr<net::IOBuffer> data,

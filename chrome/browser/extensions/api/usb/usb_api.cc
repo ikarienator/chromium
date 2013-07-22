@@ -13,6 +13,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/usb/usb_service.h"
 #include "chrome/browser/usb/usb_service_factory.h"
+#include "chrome/browser/usb/usb_transfer.h"
 #include "chrome/common/extensions/api/usb.h"
 #include "chrome/common/extensions/permissions/permissions_data.h"
 #include "chrome/common/extensions/permissions/usb_device_permission.h"
@@ -184,19 +185,19 @@ static bool ConvertDirection(const Direction& input,
 }
 
 static bool ConvertRequestType(const RequestType& input,
-                               UsbDevice::TransferRequestType* output) {
+                               UsbTransfer::TransferRequestType* output) {
   switch (input) {
     case usb::REQUEST_TYPE_STANDARD:
-      *output = UsbDevice::STANDARD;
+      *output = UsbTransfer::STANDARD;
       return true;
     case usb::REQUEST_TYPE_CLASS:
-      *output = UsbDevice::CLASS;
+      *output = UsbTransfer::CLASS;
       return true;
     case usb::REQUEST_TYPE_VENDOR:
-      *output = UsbDevice::VENDOR;
+      *output = UsbTransfer::VENDOR;
       return true;
     case usb::REQUEST_TYPE_RESERVED:
-      *output = UsbDevice::RESERVED;
+      *output = UsbTransfer::RESERVED;
       return true;
     default:
       NOTREACHED();
@@ -205,19 +206,19 @@ static bool ConvertRequestType(const RequestType& input,
 }
 
 static bool ConvertRecipient(const Recipient& input,
-                             UsbDevice::TransferRecipient* output) {
+                             UsbTransfer::TransferRecipient* output) {
   switch (input) {
     case usb::RECIPIENT_DEVICE:
-      *output = UsbDevice::DEVICE;
+      *output = UsbTransfer::DEVICE;
       return true;
     case usb::RECIPIENT_INTERFACE:
-      *output = UsbDevice::INTERFACE;
+      *output = UsbTransfer::INTERFACE;
       return true;
     case usb::RECIPIENT_ENDPOINT:
-      *output = UsbDevice::ENDPOINT;
+      *output = UsbTransfer::ENDPOINT;
       return true;
     case usb::RECIPIENT_OTHER:
-      *output = UsbDevice::OTHER;
+      *output = UsbTransfer::OTHER;
       return true;
     default:
       NOTREACHED();
@@ -383,7 +384,7 @@ bool UsbAsyncApiTransferFunction::ConvertDirectionSafely(
 }
 
 bool UsbAsyncApiTransferFunction::ConvertRequestTypeSafely(
-    const RequestType& input, UsbDevice::TransferRequestType* output) {
+    const RequestType& input, UsbTransfer::TransferRequestType* output) {
   const bool converted = ConvertRequestType(input, output);
   if (!converted)
     SetError(kErrorConvertRequestType);
@@ -391,7 +392,7 @@ bool UsbAsyncApiTransferFunction::ConvertRequestTypeSafely(
 }
 
 bool UsbAsyncApiTransferFunction::ConvertRecipientSafely(
-    const Recipient& input, UsbDevice::TransferRecipient* output) {
+    const Recipient& input, UsbTransfer::TransferRecipient* output) {
   const bool converted = ConvertRecipient(input, output);
   if (!converted)
     SetError(kErrorConvertRecipient);
@@ -729,8 +730,8 @@ void UsbControlTransferFunction::AsyncWorkStart() {
   const ControlTransferInfo& transfer = parameters_->transfer_info;
 
   UsbEndpointDirection direction;
-  UsbDevice::TransferRequestType request_type;
-  UsbDevice::TransferRecipient recipient;
+  UsbTransfer::TransferRequestType request_type;
+  UsbTransfer::TransferRecipient recipient;
   size_t size = 0;
 
   if (!ConvertDirectionSafely(transfer.direction, &direction) ||
@@ -752,7 +753,7 @@ void UsbControlTransferFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->ControlTransfer(
+  UsbTransfer::CreateControlTransfer(
       direction,
       request_type,
       recipient,
@@ -761,8 +762,8 @@ void UsbControlTransferFunction::AsyncWorkStart() {
       transfer.index,
       buffer.get(),
       size,
-      0,
-      base::Bind(&UsbControlTransferFunction::OnCompleted, this));
+      0)->Submit(resource->device(),
+                 base::Bind(&UsbControlTransferFunction::OnCompleted, this));
 }
 
 UsbBulkTransferFunction::UsbBulkTransferFunction() {}
@@ -805,13 +806,13 @@ void UsbBulkTransferFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()
-      ->BulkTransfer(direction,
-                     transfer.endpoint,
-                     buffer.get(),
-                     size,
-                     0,
-                     base::Bind(&UsbBulkTransferFunction::OnCompleted, this));
+  UsbTransfer::CreateBulkTransfer(
+      direction,
+      transfer.endpoint,
+      buffer.get(),
+      size,
+      0)->Submit(resource->device(),
+                 base::Bind(&UsbBulkTransferFunction::OnCompleted, this));
 }
 
 UsbInterruptTransferFunction::UsbInterruptTransferFunction() {}
@@ -854,13 +855,13 @@ void UsbInterruptTransferFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->InterruptTransfer(
+  UsbTransfer::CreateInterruptTransfer(
       direction,
       transfer.endpoint,
       buffer.get(),
       size,
-      0,
-      base::Bind(&UsbInterruptTransferFunction::OnCompleted, this));
+      0)->Submit(resource->device(),
+                 base::Bind(&UsbInterruptTransferFunction::OnCompleted, this));
 }
 
 UsbIsochronousTransferFunction::UsbIsochronousTransferFunction() {}
@@ -919,15 +920,15 @@ void UsbIsochronousTransferFunction::AsyncWorkStart() {
     return;
   }
 
-  resource->device()->IsochronousTransfer(
+  UsbTransfer::CreateIsochronousTransfer(
       direction,
       generic_transfer.endpoint,
       buffer.get(),
       size,
       packets,
       packet_length,
-      0,
-      base::Bind(&UsbIsochronousTransferFunction::OnCompleted, this));
+      0)->Submit(resource->device(),
+                 base::Bind(&UsbIsochronousTransferFunction::OnCompleted, this));
 }
 
 UsbResetDeviceFunction::UsbResetDeviceFunction() {}

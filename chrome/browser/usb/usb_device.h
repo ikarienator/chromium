@@ -5,7 +5,7 @@
 #ifndef CHROME_BROWSER_USB_USB_DEVICE_H_
 #define CHROME_BROWSER_USB_USB_DEVICE_H_
 
-#include <map>
+#include <set>
 #include <vector>
 
 #include "base/memory/ref_counted.h"
@@ -25,6 +25,7 @@ typedef libusb_iso_packet_descriptor* PlatformUsbIsoPacketDescriptor;
 typedef libusb_transfer* PlatformUsbTransferHandle;
 
 class UsbService;
+class UsbTransfer;
 
 namespace net {
 class IOBuffer;
@@ -50,9 +51,6 @@ typedef base::Callback<void(bool)> UsbInterfaceCallback;
 // standard USB operations.
 class UsbDevice : public base::RefCounted<UsbDevice> {
  public:
-  enum TransferRequestType { STANDARD, CLASS, VENDOR, RESERVED };
-  enum TransferRecipient { DEVICE, INTERFACE, ENDPOINT, OTHER };
-
   // Usually you will not want to directly create a UsbDevice, favoring to let
   // the UsbService take care of the logistics of getting a platform device
   // handle and handling events for it.
@@ -78,47 +76,7 @@ class UsbDevice : public base::RefCounted<UsbDevice> {
       const int alternate_setting,
       const UsbInterfaceCallback& callback);
 
-  virtual void ControlTransfer(const UsbEndpointDirection direction,
-                               const TransferRequestType request_type,
-                               const TransferRecipient recipient,
-                               const uint8 request,
-                               const uint16 value,
-                               const uint16 index,
-                               net::IOBuffer* buffer,
-                               const size_t length,
-                               const unsigned int timeout,
-                               const UsbTransferCallback& callback);
-
-  virtual void BulkTransfer(const UsbEndpointDirection direction,
-                            const uint8 endpoint,
-                            net::IOBuffer* buffer,
-                            const size_t length,
-                            const unsigned int timeout,
-                            const UsbTransferCallback& callback);
-
-  virtual void InterruptTransfer(const UsbEndpointDirection direction,
-                                 const uint8 endpoint,
-                                 net::IOBuffer* buffer,
-                                 const size_t length,
-                                 const unsigned int timeout,
-                                 const UsbTransferCallback& callback);
-
-  virtual void IsochronousTransfer(const UsbEndpointDirection direction,
-                                   const uint8 endpoint,
-                                   net::IOBuffer* buffer,
-                                   const size_t length,
-                                   const unsigned int packets,
-                                   const unsigned int packet_length,
-                                   const unsigned int timeout,
-                                   const UsbTransferCallback& callback);
-
   virtual void ResetDevice(const base::Callback<void(bool)>& callback);
-
-  // Normal code should not call this function. It is called by the platform's
-  // callback mechanism in such a way that it cannot be made private. Invokes
-  // the callbacks associated with a given transfer, and removes it from the
-  // in-flight transfer set.
-  void TransferComplete(PlatformUsbTransferHandle transfer);
 
  protected:
   // This constructor variant is for use in testing only.
@@ -128,27 +86,13 @@ class UsbDevice : public base::RefCounted<UsbDevice> {
   virtual ~UsbDevice();
 
  private:
-  struct Transfer {
-    Transfer();
-    ~Transfer();
-
-    UsbTransferType transfer_type;
-    scoped_refptr<net::IOBuffer> buffer;
-    size_t length;
-    UsbTransferCallback callback;
-  };
-
   // Checks that the device has not yet been closed.
   void CheckDevice();
 
-  // Submits a transfer and starts tracking it. Retains the buffer and copies
-  // the completion callback until the transfer finishes, whereupon it invokes
-  // the callback then releases the buffer.
-  void SubmitTransfer(PlatformUsbTransferHandle handle,
-                      UsbTransferType transfer_type,
-                      net::IOBuffer* buffer,
-                      const size_t length,
-                      const UsbTransferCallback& callback);
+  // Register the transfer to the UsbDevice so is will be gracefully released
+  // upon the closure of the device.
+  void RegisterTransfer(UsbTransfer* transfer);
+  void UnregisterTransfer(UsbTransfer* transfer);
 
   // The UsbService isn't referenced here to prevent a dependency cycle between
   // the service and the devices. Since a service owns every device, and is
@@ -157,11 +101,8 @@ class UsbDevice : public base::RefCounted<UsbDevice> {
   UsbService* const service_;
   PlatformUsbDeviceHandle handle_;
 
-  // transfers_ tracks all in-flight transfers associated with this device,
-  // allowing the device to retain the buffer and callback associated with a
-  // transfer until such time that it completes. It is protected by lock_.
-  base::Lock lock_;
-  std::map<PlatformUsbTransferHandle, Transfer> transfers_;
+  typedef std::set<UsbTransfer*> TransferSet;
+  TransferSet transfers_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbDevice);
 };
