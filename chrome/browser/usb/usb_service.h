@@ -13,7 +13,6 @@
 #include "base/memory/singleton.h"
 #include "base/threading/platform_thread.h"
 #include "chrome/browser/usb/usb_device_handle.h"
-#include "third_party/libusb/src/libusb/libusb.h"
 
 class UsbEventHandler;
 template <typename T> struct DefaultSingletonTraits;
