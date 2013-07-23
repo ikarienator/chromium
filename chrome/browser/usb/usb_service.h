@@ -46,11 +46,13 @@ class UsbService {
   // UsbDevice's Close function and disposes of the associated platform handle.
   void CloseDevice(scoped_refptr<UsbDeviceHandle> device);
 
+ protected:
+  UsbService();
+  virtual ~UsbService();
+
  private:
   friend struct DefaultSingletonTraits<UsbService>;
 
-  UsbService();
-  virtual ~UsbService();
 
   // RefCountedPlatformUsbDevice takes care of managing the underlying reference
   // count of a single PlatformUsbDevice. This allows us to construct things
