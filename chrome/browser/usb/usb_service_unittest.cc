@@ -4,6 +4,7 @@
 
 #include "chrome/browser/usb/usb_service.h"
 
+#include "base/threading/platform_thread.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -28,6 +29,8 @@ TEST_F(UsbServiceTest, MAYBE_GracefulShutdown) {
   base::TimeTicks start = base::TimeTicks::Now();
   {
     scoped_ptr<UsbServiceForTest> service(new UsbServiceForTest());
+    // Wait for event handler thread being started.
+    base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(100));
   }
   base::TimeDelta elapse = base::TimeTicks::Now() - start;
   if (elapse > base::TimeDelta::FromSeconds(2)) {

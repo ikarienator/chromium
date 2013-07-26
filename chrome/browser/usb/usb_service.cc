@@ -10,7 +10,6 @@
 #include "base/bind_helpers.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
-#include "base/synchronization/waitable_event.h"
 #include "chrome/browser/usb/usb_device_handle.h"
 #include "third_party/libusb/src/libusb/interrupt.h"
 #include "third_party/libusb/src/libusb/libusb.h"
@@ -33,10 +32,8 @@ class UsbEventHandler : public base::PlatformThread::Delegate {
   explicit UsbEventHandler(libusb_context* context)
       : running_(true),
         context_(context),
-        thread_handle_(0),
-        started_event_(false, false) {
+        thread_handle_(0) {
     base::PlatformThread::Create(0, this, &thread_handle_);
-    started_event_.Wait();
   }
 
   virtual ~UsbEventHandler() {}
@@ -44,7 +41,6 @@ class UsbEventHandler : public base::PlatformThread::Delegate {
   virtual void ThreadMain() OVERRIDE {
     base::PlatformThread::SetName("UsbEventHandler");
     VLOG(1) << "UsbEventHandler started.";
-    started_event_.Signal();
     while (running_)
       libusb_handle_events(context_);
     VLOG(1) << "UsbEventHandler shutting down.";
@@ -61,7 +57,6 @@ class UsbEventHandler : public base::PlatformThread::Delegate {
   volatile bool running_;
   libusb_context* context_;
   base::PlatformThreadHandle thread_handle_;
-  base::WaitableEvent started_event_;
   DISALLOW_COPY_AND_ASSIGN(UsbEventHandler);
 };
 
