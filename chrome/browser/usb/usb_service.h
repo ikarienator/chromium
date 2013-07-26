@@ -11,7 +11,6 @@
 
 #include "base/basictypes.h"
 #include "base/memory/singleton.h"
-#include "base/threading/platform_thread.h"
 #include "chrome/browser/usb/usb_device_handle.h"
 
 template <typename T> struct DefaultSingletonTraits;
