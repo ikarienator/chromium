@@ -16,6 +16,7 @@
 #include "net/base/io_buffer.h"
 
 class UsbDeviceHandle;
+class UsbService;
 
 namespace extensions {
 
@@ -76,6 +77,7 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
   scoped_ptr<base::ListValue> result_;
   std::vector<scoped_refptr<UsbDeviceHandle> > devices_;
   scoped_ptr<extensions::api::usb::FindDevices::Params> parameters_;
+  UsbService* service_;
 };
 
 class UsbListInterfacesFunction : public UsbAsyncApiFunction {

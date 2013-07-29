@@ -10,8 +10,13 @@
 #include "base/bind_helpers.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/usb/usb_context.h"
 #include "chrome/browser/usb/usb_device_handle.h"
+#include "content/public/browser/browser_thread.h"
+#include "content/public/browser/notification_details.h"
+#include "content/public/browser/notification_service.h"
+#include "content/public/browser/notification_source.h"
 #include "third_party/libusb/src/libusb/libusb.h"
 
 #if defined(OS_CHROMEOS)
@@ -20,14 +25,24 @@
 #include "chromeos/dbus/permission_broker_client.h"
 #endif  // defined(OS_CHROMEOS)
 
+using content::BrowserThread;
 using std::vector;
 
-UsbService::UsbService() : context_(new UsbContext()) {}
+UsbService::UsbService() : context_(new UsbContext(false)) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
+  registrar_.Add(this, chrome::NOTIFICATION_APP_TERMINATING,
+                 content::NotificationService::AllSources());
+}
 
-UsbService::~UsbService() {}
+UsbService::~UsbService() {
+  // UsbDeviceHandle::Close removes itself from devices_.
+  while (devices_.size())
+    devices_.begin()->second->Close();
+}
 
 UsbService* UsbService::GetInstance() {
-  return Singleton<UsbService>::get();
+  // UsbService deletes itself upon APP_TERMINATING.
+  return Singleton<UsbService, LeakySingletonTraits<UsbService> >::get();
 }
 
 void UsbService::FindDevices(const uint16 vendor_id,
@@ -119,6 +134,13 @@ void UsbService::CloseDevice(scoped_refptr<UsbDeviceHandle> device) {
 
   devices_.erase(platform_device);
   libusb_close(device->handle());
+}
+
+void UsbService::Observe(int type,
+                         const content::NotificationSource& source,
+                         const content::NotificationDetails& details) {
+  if (type == chrome::NOTIFICATION_APP_TERMINATING)
+    delete this;
 }
 
 UsbService::RefCountedPlatformUsbDevice::RefCountedPlatformUsbDevice(

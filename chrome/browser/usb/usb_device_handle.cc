@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -127,7 +127,7 @@ void UsbDeviceHandle::TransferComplete(PlatformUsbTransferHandle handle) {
   DCHECK(ContainsKey(transfers_, handle)) << "Missing transfer completed";
   Transfer* const transfer = &transfers_[handle];
 
-  DCHECK(handle->actual_length >= 0) << "Negative actual length received";
+  DCHECK_GE(handle->actual_length, 0) << "Negative actual length received";
   size_t actual_length =
       static_cast<size_t>(std::max(handle->actual_length, 0));
 

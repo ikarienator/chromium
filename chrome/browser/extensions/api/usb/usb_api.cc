@@ -398,7 +398,7 @@ bool UsbAsyncApiTransferFunction::ConvertRecipientSafely(
   return converted;
 }
 
-UsbFindDevicesFunction::UsbFindDevicesFunction() {}
+UsbFindDevicesFunction::UsbFindDevicesFunction() : service_(NULL) {}
 
 UsbFindDevicesFunction::~UsbFindDevicesFunction() {}
 
@@ -407,6 +407,8 @@ void UsbFindDevicesFunction::SetDeviceForTest(UsbDeviceHandle* device) {
 }
 
 bool UsbFindDevicesFunction::Prepare() {
+  service_ = UsbService::GetInstance();
+  if (!service_) return false;
   parameters_ = FindDevices::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters_.get());
   return true;
@@ -440,7 +442,7 @@ void UsbFindDevicesFunction::AsyncWorkStart() {
     return;
   }
 
-  UsbService::GetInstance()->FindDevices(
+  service_->FindDevices(
       vendor_id,
       product_id,
       interface_id,

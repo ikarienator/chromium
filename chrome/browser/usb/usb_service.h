@@ -12,15 +12,24 @@
 #include "base/basictypes.h"
 #include "base/memory/singleton.h"
 #include "chrome/browser/usb/usb_device_handle.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 
 template <typename T> struct DefaultSingletonTraits;
 class UsbContext;
+
+namespace content {
+
+class NotificationDetails;
+class NotificationSource;
+
+}  // content
 
 // The USB service handles creating and managing an event handler thread that is
 // used to manage and dispatch USB events. It is also responsbile for device
 // discovery on the system, which allows it to re-use device handles to prevent
 // competition for the same USB device.
-class UsbService {
+class UsbService : public content::NotificationObserver {
  public:
   static UsbService* GetInstance();
 
@@ -45,9 +54,13 @@ class UsbService {
   UsbService();
   virtual ~UsbService();
 
+  // content::NotificationObserver
+  virtual void Observe(int type,
+                       const content::NotificationSource& source,
+                       const content::NotificationDetails& details) OVERRIDE;
+
  private:
   friend struct DefaultSingletonTraits<UsbService>;
-
 
   // RefCountedPlatformUsbDevice takes care of managing the underlying reference
   // count of a single PlatformUsbDevice. This allows us to construct things
@@ -98,6 +111,8 @@ class UsbService {
   typedef std::map<PlatformUsbDevice, scoped_refptr<UsbDeviceHandle> >
       DeviceMap;
   DeviceMap devices_;
+
+  content::NotificationRegistrar registrar_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbService);
 };

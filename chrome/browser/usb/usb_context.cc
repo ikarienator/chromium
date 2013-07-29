@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/logging.h"
 #include "base/threading/platform_thread.h"
+#include "content/public/browser/browser_thread.h"
 #include "third_party/libusb/src/libusb/interrupt.h"
 #include "third_party/libusb/src/libusb/libusb.h"
 
@@ -14,45 +15,54 @@
 // handler calls should return without handling any events.
 class UsbEventHandler : public base::PlatformThread::Delegate {
  public:
-  explicit UsbEventHandler(libusb_context* context)
+  explicit UsbEventHandler(libusb_context* context, bool wait_for_polling)
       : running_(true),
         context_(context),
-        thread_handle_(0) {
-    base::PlatformThread::Create(0, this, &thread_handle_);
+        thread_handle_(0),
+        start_polling_(false, false) {
+    CHECK(base::PlatformThread::Create(0, this, &thread_handle_)) <<
+        "Failed to create USB IO handling thread.";
+    if (wait_for_polling)
+      start_polling_.Wait();
   }
 
-  virtual ~UsbEventHandler() {}
+  virtual ~UsbEventHandler() {
+    running_ = false;
+    // Spreading running_ to the UsbEventHandler thread.
+    base::subtle::MemoryBarrier();
+    libusb_interrupt_handle_event(context_);
+    base::PlatformThread::Join(thread_handle_);
+  }
 
   virtual void ThreadMain() OVERRIDE {
     base::PlatformThread::SetName("UsbEventHandler");
     VLOG(1) << "UsbEventHandler started.";
+    if (running_) {
+      start_polling_.Signal();
+      libusb_handle_events(context_);
+    }
     while (running_)
       libusb_handle_events(context_);
     VLOG(1) << "UsbEventHandler shutting down.";
-  }
-
-  void Stop() {
-    running_ = false;
-    base::subtle::MemoryBarrier();
-    libusb_interrupt_handle_event(context_);
-    base::PlatformThread::Join(thread_handle_);
   }
 
  private:
   volatile bool running_;
   libusb_context* context_;
   base::PlatformThreadHandle thread_handle_;
+  base::WaitableEvent start_polling_;
   DISALLOW_COPY_AND_ASSIGN(UsbEventHandler);
 };
 
 
-UsbContext::UsbContext() : context_(NULL) {
+UsbContext::UsbContext(bool wait_for_polling_starts) : context_(NULL) {
   CHECK_EQ(0, libusb_init(&context_)) << "Cannot initialize libusb";
-  event_handler_.reset(new UsbEventHandler(context_));
+  event_handler_.reset(new UsbEventHandler(context_, wait_for_polling_starts));
 }
 
 UsbContext::~UsbContext() {
-  event_handler_->Stop();
+  // destruction of UsbEventHandler is a blocking operation.
+  CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::FILE));
   event_handler_.reset(NULL);
   libusb_exit(context_);
 }

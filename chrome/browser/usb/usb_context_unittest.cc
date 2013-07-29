@@ -1,18 +1,28 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/usb/usb_service.h"
+#include "chrome/browser/usb/usb_context.h"
 
+#include "base/synchronization/waitable_event.h"
 #include "base/threading/platform_thread.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace {
 
-class UsbServiceTest : public testing::Test {
+class UsbContextTest : public testing::Test {
  protected:
-  class UsbServiceForTest : public UsbService {};
+  class UsbContextForTest : public UsbContext {
+   public:
+    UsbContextForTest() : UsbContext(true) {  // Wait for polling so that
+                                              // libusb_handle_events is
+                                              // actually get called.
+    }
+   private:
+    virtual ~UsbContextForTest() OVERRIDE {}
+    DISALLOW_COPY_AND_ASSIGN(UsbContextForTest);
+  };
 };
 
 #if defined(OS_LINUX)
@@ -25,12 +35,10 @@ class UsbServiceTest : public testing::Test {
 #define MAYBE_GracefulShutdown GracefulShutdown
 #endif
 
-TEST_F(UsbServiceTest, MAYBE_GracefulShutdown) {
+TEST_F(UsbContextTest, MAYBE_GracefulShutdown) {
   base::TimeTicks start = base::TimeTicks::Now();
   {
-    scoped_ptr<UsbServiceForTest> service(new UsbServiceForTest());
-    // Wait for event handler thread being started.
-    base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(100));
+    scoped_refptr<UsbContextForTest> context(new UsbContextForTest());
   }
   base::TimeDelta elapse = base::TimeTicks::Now() - start;
   if (elapse > base::TimeDelta::FromSeconds(2)) {
