@@ -272,9 +272,15 @@ bool UsbDeviceHandle::GetSerial(base::string16* serial) {
     size = libusb_get_string_descriptor(
         handle_, desc.iSerialNumber, langid[i],
         reinterpret_cast<unsigned char*>(&text[0]), sizeof(text));
-    if (size < 0)
+    if (size <= 2)
       continue;
-    *serial = base::string16(text, size / 2);
+    if ((text[0] >> 8) != LIBUSB_DT_STRING)
+      continue;
+    if ((text[0] & 255) > size)
+      continue;
+
+    size = size / 2 - 1;
+    *serial = base::string16(text + 1, size);
     return true;
   }
   return false;

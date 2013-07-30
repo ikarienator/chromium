@@ -326,6 +326,14 @@ static base::Value* PopulateInterfaceDescriptor(int interface_number,
   return descriptor.ToValue().release();
 }
 
+void GetUsbService(base::Callback<void(UsbService*)> callback) {
+  BrowserThread::PostTaskAndReplyWithResult(
+      BrowserThread::FILE,
+      FROM_HERE,
+      base::Bind(UsbService::GetInstance),
+      callback);
+}
+
 }  // namespace
 
 namespace extensions {
@@ -398,7 +406,7 @@ bool UsbAsyncApiTransferFunction::ConvertRecipientSafely(
   return converted;
 }
 
-UsbFindDevicesFunction::UsbFindDevicesFunction() : service_(NULL) {}
+UsbFindDevicesFunction::UsbFindDevicesFunction() {}
 
 UsbFindDevicesFunction::~UsbFindDevicesFunction() {}
 
@@ -407,8 +415,6 @@ void UsbFindDevicesFunction::SetDeviceForTest(UsbDeviceHandle* device) {
 }
 
 bool UsbFindDevicesFunction::Prepare() {
-  service_ = UsbService::GetInstance();
-  if (!service_) return false;
   parameters_ = FindDevices::Params::Create(*args_);
   EXTENSION_FUNCTION_VALIDATE(parameters_.get());
   return true;
@@ -442,11 +448,36 @@ void UsbFindDevicesFunction::AsyncWorkStart() {
     return;
   }
 
-  service_->FindDevices(
-      vendor_id,
-      product_id,
-      interface_id,
-      &devices_,
+  GetUsbService(base::Bind(&UsbFindDevicesFunction::EnumerateDevices,
+                           this,
+                           vendor_id,
+                           product_id,
+                           interface_id));
+}
+
+void UsbFindDevicesFunction::EnumerateDevices(
+    uint16_t vendor_id,
+    uint16_t product_id,
+    int interface_id,
+    UsbService* service) {
+  BrowserThread::PostTask(
+      BrowserThread::FILE,
+      FROM_HERE,
+      base::Bind(&UsbService::FindDevices,
+                 base::Unretained(service),
+                 vendor_id,
+                 product_id,
+                 interface_id,
+                 &devices_,
+                 base::Bind(&UsbFindDevicesFunction::OnEnumerationCompleted,
+                            this)));
+}
+
+
+void UsbFindDevicesFunction::OnEnumerationCompleted() {
+  BrowserThread::PostTask(
+      BrowserThread::IO,
+      FROM_HERE,
       base::Bind(&UsbFindDevicesFunction::OnCompleted, this));
 }
 
@@ -456,7 +487,6 @@ void UsbFindDevicesFunction::OnCompleted() {
     UsbDeviceResource* const resource =
         new UsbDeviceResource(extension_->id(), device);
 
-    Device js_device;
     result_->Append(PopulateDevice(manager_->Add(resource),
                                    parameters_->options.vendor_id,
                                    parameters_->options.product_id));

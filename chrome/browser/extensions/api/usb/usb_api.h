@@ -72,12 +72,16 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
   virtual void AsyncWorkStart() OVERRIDE;
 
  private:
+  void EnumerateDevices(uint16_t vendor_id,
+                        uint16_t product_id,
+                        int interface_id,
+                        UsbService* service);
+  void OnEnumerationCompleted();
   void OnCompleted();
 
   scoped_ptr<base::ListValue> result_;
   std::vector<scoped_refptr<UsbDeviceHandle> > devices_;
   scoped_ptr<extensions::api::usb::FindDevices::Params> parameters_;
-  UsbService* service_;
 };
 
 class UsbListInterfacesFunction : public UsbAsyncApiFunction {

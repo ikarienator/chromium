@@ -8,10 +8,8 @@
 #include "base/basictypes.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_ptr.h"
-#include "base/synchronization/waitable_event.h"
 #include "content/public/browser/browser_thread.h"
 
-class UsbEventHandler;
 struct libusb_context;
 
 typedef libusb_context* PlatformUsbContext;
@@ -34,10 +32,11 @@ class UsbContext
 
   // Set wait_for_polling_starts to true if the constructor should wait until
   // the polling starts. It will block the current thread. Only use it in tests.
-  explicit UsbContext(bool wait_for_polling_starts);
+  explicit UsbContext();
   virtual ~UsbContext();
 
  private:
+  class UsbEventHandler;
   PlatformUsbContext context_;
   scoped_ptr<UsbEventHandler> event_handler_;
 

@@ -12,25 +12,23 @@
 #include "base/basictypes.h"
 #include "base/memory/singleton.h"
 #include "chrome/browser/usb/usb_device_handle.h"
-#include "content/public/browser/notification_observer.h"
-#include "content/public/browser/notification_registrar.h"
+
+namespace base {
+
+template <class T> class DeleteHelper;
+
+}  // namespace base
 
 template <typename T> struct DefaultSingletonTraits;
 class UsbContext;
-
-namespace content {
-
-class NotificationDetails;
-class NotificationSource;
-
-}  // content
 
 // The USB service handles creating and managing an event handler thread that is
 // used to manage and dispatch USB events. It is also responsbile for device
 // discovery on the system, which allows it to re-use device handles to prevent
 // competition for the same USB device.
-class UsbService : public content::NotificationObserver {
+class UsbService {
  public:
+  // Must be called on FILE thread.
   static UsbService* GetInstance();
 
   // Find all of the devices attached to the system that are identified by
@@ -50,17 +48,11 @@ class UsbService : public content::NotificationObserver {
   // UsbDevice's Close function and disposes of the associated platform handle.
   void CloseDevice(scoped_refptr<UsbDeviceHandle> device);
 
- protected:
+ private:
   UsbService();
   virtual ~UsbService();
-
-  // content::NotificationObserver
-  virtual void Observe(int type,
-                       const content::NotificationSource& source,
-                       const content::NotificationDetails& details) OVERRIDE;
-
- private:
   friend struct DefaultSingletonTraits<UsbService>;
+  friend class base::DeleteHelper<UsbService>;
 
   // RefCountedPlatformUsbDevice takes care of managing the underlying reference
   // count of a single PlatformUsbDevice. This allows us to construct things
@@ -85,8 +77,17 @@ class UsbService : public content::NotificationObserver {
                             const uint16 vendor_id,
                             const uint16 product_id);
 
+  // This method is called when permission broker replied our request.
+  // We will simply relay it to FILE thread.
+  void OnRequestUsbAccessReplied(
+      const uint16 vendor_id,
+      const uint16 product_id,
+      std::vector<scoped_refptr<UsbDeviceHandle> >* devices,
+      const base::Callback<void()>& callback,
+      bool success);
+
   // FindDevicesImpl is called by FindDevices on ChromeOS after the permission
-  // broker has signalled that permission has been granted to access the
+  // broker has signaled that permission has been granted to access the
   // underlying device nodes. On other platforms, it is called directly by
   // FindDevices.
   void FindDevicesImpl(const uint16 vendor_id,
@@ -111,8 +112,6 @@ class UsbService : public content::NotificationObserver {
   typedef std::map<PlatformUsbDevice, scoped_refptr<UsbDeviceHandle> >
       DeviceMap;
   DeviceMap devices_;
-
-  content::NotificationRegistrar registrar_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbService);
 };

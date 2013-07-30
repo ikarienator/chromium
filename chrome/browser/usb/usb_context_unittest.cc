@@ -4,7 +4,6 @@
 
 #include "chrome/browser/usb/usb_context.h"
 
-#include "base/synchronization/waitable_event.h"
 #include "base/threading/platform_thread.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -15,12 +14,9 @@ class UsbContextTest : public testing::Test {
  protected:
   class UsbContextForTest : public UsbContext {
    public:
-    UsbContextForTest() : UsbContext(true) {  // Wait for polling so that
-                                              // libusb_handle_events is
-                                              // actually get called.
-    }
+    UsbContextForTest() : UsbContext() {}
    private:
-    virtual ~UsbContextForTest() OVERRIDE {}
+    virtual ~UsbContextForTest() {}
     DISALLOW_COPY_AND_ASSIGN(UsbContextForTest);
   };
 };

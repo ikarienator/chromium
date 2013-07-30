@@ -2477,7 +2477,7 @@
             'common/importer/firefox_importer_utils_unittest.cc',
 
             # USB service is not supported on Android.
-            'browser/usb/usb_service_unittest.cc',
+            'browser/usb/usb_context_unittest.cc',
           ],
           'sources/': [
             ['exclude', '^browser/captive_portal/'],

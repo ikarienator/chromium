@@ -5,6 +5,7 @@
 #include "chrome/browser/usb/usb_context.h"
 
 #include "base/logging.h"
+#include "base/synchronization/waitable_event.h"
 #include "base/threading/platform_thread.h"
 #include "content/public/browser/browser_thread.h"
 #include "third_party/libusb/src/libusb/interrupt.h"
@@ -13,38 +14,13 @@
 // The UsbEventHandler works around a design flaw in the libusb interface. There
 // is currently no way to signal to libusb that any caller into one of the event
 // handler calls should return without handling any events.
-class UsbEventHandler : public base::PlatformThread::Delegate {
+class UsbContext::UsbEventHandler : public base::PlatformThread::Delegate {
  public:
-  explicit UsbEventHandler(libusb_context* context, bool wait_for_polling)
-      : running_(true),
-        context_(context),
-        thread_handle_(0),
-        start_polling_(false, false) {
-    CHECK(base::PlatformThread::Create(0, this, &thread_handle_)) <<
-        "Failed to create USB IO handling thread.";
-    if (wait_for_polling)
-      start_polling_.Wait();
-  }
+  explicit UsbEventHandler(libusb_context* context);
+  virtual ~UsbEventHandler();
 
-  virtual ~UsbEventHandler() {
-    running_ = false;
-    // Spreading running_ to the UsbEventHandler thread.
-    base::subtle::MemoryBarrier();
-    libusb_interrupt_handle_event(context_);
-    base::PlatformThread::Join(thread_handle_);
-  }
-
-  virtual void ThreadMain() OVERRIDE {
-    base::PlatformThread::SetName("UsbEventHandler");
-    VLOG(1) << "UsbEventHandler started.";
-    if (running_) {
-      start_polling_.Signal();
-      libusb_handle_events(context_);
-    }
-    while (running_)
-      libusb_handle_events(context_);
-    VLOG(1) << "UsbEventHandler shutting down.";
-  }
+  // base::PlatformThread::Delegate
+  virtual void ThreadMain() OVERRIDE;
 
  private:
   volatile bool running_;
@@ -54,10 +30,39 @@ class UsbEventHandler : public base::PlatformThread::Delegate {
   DISALLOW_COPY_AND_ASSIGN(UsbEventHandler);
 };
 
+UsbContext::UsbEventHandler::UsbEventHandler(libusb_context* context)
+    : running_(true),
+      context_(context),
+      thread_handle_(0),
+      start_polling_(false, false) {
+  DCHECK(base::PlatformThread::Create(0, this, &thread_handle_)) <<
+      "Failed to create USB IO handling thread.";
+  start_polling_.Wait();
+}
 
-UsbContext::UsbContext(bool wait_for_polling_starts) : context_(NULL) {
+UsbContext::UsbEventHandler::~UsbEventHandler() {
+  running_ = false;
+  // Spreading running_ to the UsbEventHandler thread.
+  base::subtle::MemoryBarrier();
+  libusb_interrupt_handle_event(context_);
+  base::PlatformThread::Join(thread_handle_);
+}
+
+void UsbContext::UsbEventHandler::ThreadMain() {
+  base::PlatformThread::SetName("UsbEventHandler");
+  VLOG(1) << "UsbEventHandler started.";
+  if (running_) {
+    start_polling_.Signal();
+    libusb_handle_events(context_);
+  }
+  while (running_)
+    libusb_handle_events(context_);
+  VLOG(1) << "UsbEventHandler shutting down.";
+}
+
+UsbContext::UsbContext() : context_(NULL) {
   CHECK_EQ(0, libusb_init(&context_)) << "Cannot initialize libusb";
-  event_handler_.reset(new UsbEventHandler(context_, wait_for_polling_starts));
+  event_handler_.reset(new UsbEventHandler(context_));
 }
 
 UsbContext::~UsbContext() {

@@ -14,9 +14,9 @@
 #include "chrome/browser/usb/usb_context.h"
 #include "chrome/browser/usb/usb_device_handle.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/notification_details.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
 #include "content/public/browser/notification_service.h"
-#include "content/public/browser/notification_source.h"
 #include "third_party/libusb/src/libusb/libusb.h"
 
 #if defined(OS_CHROMEOS)
@@ -25,22 +25,54 @@
 #include "chromeos/dbus/permission_broker_client.h"
 #endif  // defined(OS_CHROMEOS)
 
+namespace content {
+
+class NotificationDetails;
+class NotificationSource;
+
+}  // namespace content
+
 using content::BrowserThread;
 using std::vector;
 
-UsbService::UsbService() : context_(new UsbContext(false)) {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
-  registrar_.Add(this, chrome::NOTIFICATION_APP_TERMINATING,
-                 content::NotificationService::AllSources());
+namespace {
+
+class ExitObserver : public content::NotificationObserver {
+ public:
+  explicit ExitObserver(UsbService* service) : service_(service) {
+    registrar_.Add(this, chrome::NOTIFICATION_APP_TERMINATING,
+                   content::NotificationService::AllSources());
+  }
+
+ private:
+  // content::NotificationObserver
+  virtual void Observe(int type,
+                       const content::NotificationSource& source,
+                       const content::NotificationDetails& details) OVERRIDE {
+    if (type == chrome::NOTIFICATION_APP_TERMINATING) {
+      registrar_.RemoveAll();
+      BrowserThread::DeleteSoon(BrowserThread::FILE, FROM_HERE, service_);
+    }
+  }
+  UsbService* service_;
+  content::NotificationRegistrar registrar_;
+};
+
+}  // namespace
+
+UsbService::UsbService() : context_(new UsbContext()) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
 }
 
 UsbService::~UsbService() {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   // UsbDeviceHandle::Close removes itself from devices_.
   while (devices_.size())
     devices_.begin()->second->Close();
 }
 
 UsbService* UsbService::GetInstance() {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   // UsbService deletes itself upon APP_TERMINATING.
   return Singleton<UsbService, LeakySingletonTraits<UsbService> >::get();
 }
@@ -50,6 +82,7 @@ void UsbService::FindDevices(const uint16 vendor_id,
                              int interface_id,
                              vector<scoped_refptr<UsbDeviceHandle> >* devices,
                              const base::Callback<void()>& callback) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
 #if defined(OS_CHROMEOS)
   // ChromeOS builds on non-ChromeOS machines (dev) should not attempt to
   // use permission broker.
@@ -62,15 +95,20 @@ void UsbService::FindDevices(const uint16 vendor_id,
       return;
     }
 
-    client->RequestUsbAccess(vendor_id,
-                             product_id,
-                             interface_id,
-                             base::Bind(&UsbService::FindDevicesImpl,
-                                        base::Unretained(this),
-                                        vendor_id,
-                                        product_id,
-                                        devices,
-                                        callback));
+    BrowserThread::PostTask(
+        BrowserThread::UI,
+        FROM_HERE,
+        base::Bind(&chromeos::PermissionBrokerClient::RequestUsbAccess,
+                   base::Unretained(client),
+                   vendor_id,
+                   product_id,
+                   interface_id,
+                   base::Bind(&UsbService::OnRequestUsbAccessReplied,
+                              base::Unretained(this),
+                              vendor_id,
+                              product_id,
+                              devices,
+                              callback)));
   } else {
     FindDevicesImpl(vendor_id, product_id, devices, callback, true);
   }
@@ -93,6 +131,24 @@ void UsbService::EnumerateDevices(
     if (wrapper)
       devices->push_back(wrapper);
   }
+}
+
+void UsbService::OnRequestUsbAccessReplied(
+    const uint16 vendor_id,
+    const uint16 product_id,
+    vector<scoped_refptr<UsbDeviceHandle> >* devices,
+    const base::Callback<void()>& callback,
+    bool success) {
+  BrowserThread::PostTask(
+      BrowserThread::FILE,
+      FROM_HERE,
+      base::Bind(&UsbService::FindDevicesImpl,
+                 base::Unretained(this),
+                 vendor_id,
+                 product_id,
+                 devices,
+                 callback,
+                 success));
 }
 
 void UsbService::FindDevicesImpl(
@@ -134,13 +190,6 @@ void UsbService::CloseDevice(scoped_refptr<UsbDeviceHandle> device) {
 
   devices_.erase(platform_device);
   libusb_close(device->handle());
-}
-
-void UsbService::Observe(int type,
-                         const content::NotificationSource& source,
-                         const content::NotificationDetails& details) {
-  if (type == chrome::NOTIFICATION_APP_TERMINATING)
-    delete this;
 }
 
 UsbService::RefCountedPlatformUsbDevice::RefCountedPlatformUsbDevice(
