@@ -77,11 +77,11 @@ UsbService* UsbService::GetInstance() {
   return Singleton<UsbService, LeakySingletonTraits<UsbService> >::get();
 }
 
-void UsbService::FindDevices(const uint16 vendor_id,
-                             const uint16 product_id,
-                             int interface_id,
-                             vector<scoped_refptr<UsbDeviceHandle> >* devices,
-                             const base::Callback<void()>& callback) {
+void UsbService::FindDevices(
+    const uint16 vendor_id,
+    const uint16 product_id,
+    int interface_id,
+    const base::Callback<void(ScopedDeviceVector vector)>& callback) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
 #if defined(OS_CHROMEOS)
   // ChromeOS builds on non-ChromeOS machines (dev) should not attempt to
@@ -91,7 +91,7 @@ void UsbService::FindDevices(const uint16 vendor_id,
         chromeos::DBusThreadManager::Get()->GetPermissionBrokerClient();
     DCHECK(client) << "Could not get permission broker client.";
     if (!client) {
-      callback.Run();
+      callback.Run(ScopedDeviceVector());
       return;
     }
 
@@ -107,18 +107,17 @@ void UsbService::FindDevices(const uint16 vendor_id,
                               base::Unretained(this),
                               vendor_id,
                               product_id,
-                              devices,
                               callback)));
   } else {
-    FindDevicesImpl(vendor_id, product_id, devices, callback, true);
+    FindDevicesImpl(vendor_id, product_id, callback, true);
   }
 #else
-  FindDevicesImpl(vendor_id, product_id, devices, callback, true);
+  FindDevicesImpl(vendor_id, product_id, callback, true);
 #endif  // defined(OS_CHROMEOS)
 }
 
 void UsbService::EnumerateDevices(
-    std::vector<scoped_refptr<UsbDeviceHandle> >* devices) {
+    vector<scoped_refptr<UsbDeviceHandle> >* devices) {
   devices->clear();
 
   DeviceVector enumerated_devices;
@@ -136,8 +135,7 @@ void UsbService::EnumerateDevices(
 void UsbService::OnRequestUsbAccessReplied(
     const uint16 vendor_id,
     const uint16 product_id,
-    vector<scoped_refptr<UsbDeviceHandle> >* devices,
-    const base::Callback<void()>& callback,
+    const base::Callback<void(ScopedDeviceVector vectors)>& callback,
     bool success) {
   BrowserThread::PostTask(
       BrowserThread::FILE,
@@ -146,7 +144,6 @@ void UsbService::OnRequestUsbAccessReplied(
                  base::Unretained(this),
                  vendor_id,
                  product_id,
-                 devices,
                  callback,
                  success));
 }
@@ -154,18 +151,17 @@ void UsbService::OnRequestUsbAccessReplied(
 void UsbService::FindDevicesImpl(
     const uint16 vendor_id,
     const uint16 product_id,
-    vector<scoped_refptr<UsbDeviceHandle> >* devices,
-    const base::Callback<void()>& callback,
+    const base::Callback<void(ScopedDeviceVector vectors)>& callback,
     bool success) {
-  base::ScopedClosureRunner run_callback(callback);
-
-  devices->clear();
+  ScopedDeviceVector devices(new vector<scoped_refptr<UsbDeviceHandle> >());
 
   // If the permission broker was unable to obtain permission for the specified
   // devices then there is no point in attempting to enumerate the devices. On
   // platforms without a permission broker, we assume permission is granted.
-  if (!success)
+  if (!success) {
+    callback.Run(devices.Pass());
     return;
+  }
 
   DeviceVector enumerated_devices;
   EnumerateDevicesImpl(&enumerated_devices);
@@ -176,9 +172,10 @@ void UsbService::FindDevicesImpl(
     if (DeviceMatches(device, vendor_id, product_id)) {
       UsbDeviceHandle* const wrapper = LookupOrCreateDevice(device);
       if (wrapper)
-        devices->push_back(wrapper);
+        devices->push_back(make_scoped_refptr(wrapper));
     }
   }
+  callback.Run(devices.Pass());
 }
 
 void UsbService::CloseDevice(scoped_refptr<UsbDeviceHandle> device) {

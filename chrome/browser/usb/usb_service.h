@@ -28,17 +28,19 @@ class UsbContext;
 // competition for the same USB device.
 class UsbService {
  public:
+  typedef scoped_ptr<std::vector<scoped_refptr<UsbDeviceHandle> > >
+      ScopedDeviceVector;
   // Must be called on FILE thread.
   static UsbService* GetInstance();
 
   // Find all of the devices attached to the system that are identified by
   // |vendor_id| and |product_id|, inserting them into |devices|. Clears
   // |devices| before use. Calls |callback| once |devices| is populated.
-  void FindDevices(const uint16 vendor_id,
-                   const uint16 product_id,
-                   int interface_id,
-                   std::vector<scoped_refptr<UsbDeviceHandle> >* devices,
-                   const base::Callback<void()>& callback);
+  void FindDevices(
+      const uint16 vendor_id,
+      const uint16 product_id,
+      int interface_id,
+      const base::Callback<void(ScopedDeviceVector vector)>& callback);
 
   // Find all of the devices attached to the system, inserting them into
   // |devices|. Clears |devices| before use.
@@ -82,19 +84,18 @@ class UsbService {
   void OnRequestUsbAccessReplied(
       const uint16 vendor_id,
       const uint16 product_id,
-      std::vector<scoped_refptr<UsbDeviceHandle> >* devices,
-      const base::Callback<void()>& callback,
+      const base::Callback<void(ScopedDeviceVector vector)>& callback,
       bool success);
 
   // FindDevicesImpl is called by FindDevices on ChromeOS after the permission
   // broker has signaled that permission has been granted to access the
   // underlying device nodes. On other platforms, it is called directly by
   // FindDevices.
-  void FindDevicesImpl(const uint16 vendor_id,
-                       const uint16 product_id,
-                       std::vector<scoped_refptr<UsbDeviceHandle> >* devices,
-                       const base::Callback<void()>& callback,
-                       bool success);
+  void FindDevicesImpl(
+      const uint16 vendor_id,
+      const uint16 product_id,
+      const base::Callback<void(ScopedDeviceVector vector)>& callback,
+      bool success);
 
   // Populates |output| with the result of enumerating all attached USB devices.
   void EnumerateDevicesImpl(DeviceVector* output);

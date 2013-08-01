@@ -326,7 +326,7 @@ static base::Value* PopulateInterfaceDescriptor(int interface_number,
   return descriptor.ToValue().release();
 }
 
-void GetUsbService(base::Callback<void(UsbService*)> callback) {
+void GetUsbService(base::Callback<void(UsbService* service)> callback) {
   BrowserThread::PostTaskAndReplyWithResult(
       BrowserThread::FILE,
       FROM_HERE,
@@ -468,22 +468,25 @@ void UsbFindDevicesFunction::EnumerateDevices(
                  vendor_id,
                  product_id,
                  interface_id,
-                 &devices_,
                  base::Bind(&UsbFindDevicesFunction::OnEnumerationCompleted,
                             this)));
 }
 
 
-void UsbFindDevicesFunction::OnEnumerationCompleted() {
+void UsbFindDevicesFunction::OnEnumerationCompleted(
+    ScopedDeviceVector devices) {
   BrowserThread::PostTask(
       BrowserThread::IO,
       FROM_HERE,
-      base::Bind(&UsbFindDevicesFunction::OnCompleted, this));
+      base::Bind(&UsbFindDevicesFunction::OnCompleted,
+                 this,
+                 base::Passed(devices.Pass())));
 }
 
-void UsbFindDevicesFunction::OnCompleted() {
-  for (size_t i = 0; i < devices_.size(); ++i) {
-    UsbDeviceHandle* const device = devices_[i].get();
+void UsbFindDevicesFunction::OnCompleted(
+    ScopedDeviceVector devices) {
+  for (size_t i = 0; i < devices->size(); ++i) {
+    UsbDeviceHandle* const device = devices->at(i).get();
     UsbDeviceResource* const resource =
         new UsbDeviceResource(extension_->id(), device);
 
