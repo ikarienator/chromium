@@ -61,13 +61,15 @@ void UsbContext::UsbEventHandler::ThreadMain() {
 }
 
 UsbContext::UsbContext() : context_(NULL) {
+  DCHECK(thread_checker_.CalledOnValidThread());
   CHECK_EQ(0, libusb_init(&context_)) << "Cannot initialize libusb";
-  event_handler_.reset(new UsbEventHandler(context_));
+  event_handler_ = new UsbEventHandler(context_);
 }
 
 UsbContext::~UsbContext() {
   // destruction of UsbEventHandler is a blocking operation.
-  CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::FILE));
-  event_handler_.reset(NULL);
+  DCHECK(thread_checker_.CalledOnValidThread());
+  delete event_handler_;
+  event_handler_ = NULL;
   libusb_exit(context_);
 }

@@ -8,6 +8,7 @@
 #include "base/basictypes.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_ptr.h"
+#include "base/threading/thread_checker.h"
 #include "content/public/browser/browser_thread.h"
 
 struct libusb_context;
@@ -18,27 +19,22 @@ typedef libusb_context* PlatformUsbContext;
 // It also manages the life-cycle of UsbEventHandler.
 // It is a blocking operation to delete UsbContext.
 // Destructor must be called on FILE thread.
-class UsbContext
-    : public base::RefCountedThreadSafe<
-          UsbContext, content::BrowserThread::DeleteOnFileThread> {
+class UsbContext : public base::RefCountedThreadSafe<UsbContext> {
  public:
   PlatformUsbContext context() const { return context_; }
 
  protected:
   friend class UsbService;
-  friend struct content::BrowserThread::DeleteOnThread<
-      content::BrowserThread::FILE>;
-  friend class base::DeleteHelper<UsbContext>;
+  friend class base::RefCountedThreadSafe<UsbContext>;
 
-  // Set wait_for_polling_starts to true if the constructor should wait until
-  // the polling starts. It will block the current thread. Only use it in tests.
-  explicit UsbContext();
+  UsbContext();
   virtual ~UsbContext();
 
  private:
   class UsbEventHandler;
   PlatformUsbContext context_;
-  scoped_ptr<UsbEventHandler> event_handler_;
+  UsbEventHandler* event_handler_;
+  base::ThreadChecker thread_checker_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbContext);
 };

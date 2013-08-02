@@ -21,6 +21,8 @@ class UsbContextTest : public testing::Test {
   };
 };
 
+}  // namespace
+
 #if defined(OS_LINUX)
 // Linux trybot does not support usb.
 #define MAYBE_GracefulShutdown DISABLED_GracefulShutdown
@@ -41,5 +43,3 @@ TEST_F(UsbContextTest, MAYBE_GracefulShutdown) {
     FAIL();
   }
 }
-
-}  // namespace
