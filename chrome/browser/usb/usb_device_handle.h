@@ -25,7 +25,10 @@ typedef libusb_device_handle* PlatformUsbDeviceHandle;
 typedef libusb_iso_packet_descriptor* PlatformUsbIsoPacketDescriptor;
 typedef libusb_transfer* PlatformUsbTransferHandle;
 
+class UsbContext;
+class UsbConfigDescriptor;
 class UsbDevice;
+class UsbInterface;
 
 namespace net {
 class IOBuffer;
@@ -54,7 +57,11 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   scoped_refptr<UsbDevice> device() const;
   PlatformUsbDeviceHandle handle() const { return handle_; }
 
-  // Close the USB device and release the underlying platform device.
+  // Notifies UsbDevice to drop the reference of this object; cancels all the
+  // flying transfers.
+  // It is possible that the object has no other reference after this call. So
+  // if it is called using a raw pointer, it could be invalidated.
+  // The platform device handle will be closed when UsbDeviceHandle destructs.
   virtual void Close();
 
   // Device manipulation operations. These methods are blocking and must be
@@ -65,7 +72,7 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
       const int interface_number,
       const int alternate_setting);
   virtual bool ResetDevice();
-  bool GetSerial(base::string16* serial);
+  virtual bool GetSerial(base::string16* serial);
 
   // Async IO. Can be called on any thread.
   virtual void ControlTransfer(const UsbEndpointDirection direction,
@@ -102,18 +109,13 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
                                    const unsigned int timeout,
                                    const UsbTransferCallback& callback);
 
-  // Normal code should not call this function. It is called by the platform's
-  // callback mechanism in such a way that it cannot be made private. Invokes
-  // the callbacks associated with a given transfer, and removes it from the
-  // in-flight transfer set.
-  void TransferComplete(PlatformUsbTransferHandle transfer);
-
  protected:
   friend class base::RefCountedThreadSafe<UsbDeviceHandle>;
   friend class UsbDevice;
 
   // This constructor is called by UsbDevice.
-  UsbDeviceHandle(UsbDevice* device, PlatformUsbDeviceHandle handle);
+  UsbDeviceHandle(scoped_refptr<UsbContext> context,
+                  UsbDevice* device, PlatformUsbDeviceHandle handle);
 
   // This constructor variant is for use in testing only.
   UsbDeviceHandle();
@@ -122,15 +124,43 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   UsbDevice* device_;
 
  private:
+  friend void HandleTransferCompletion(PlatformUsbTransferHandle handle);
+
+  class InterfaceClaimer : public base::RefCountedThreadSafe<InterfaceClaimer> {
+   public:
+    InterfaceClaimer(const PlatformUsbDeviceHandle handle,
+                     const int interface_number);
+    int alternate_setting() const { return alternate_setting_; }
+    void set_alternate_setting(const int alternate_setting) {
+      alternate_setting_ = alternate_setting;
+    }
+
+   private:
+    friend class UsbDevice;
+    friend class base::RefCountedThreadSafe<InterfaceClaimer>;
+    ~InterfaceClaimer();
+
+    const PlatformUsbDeviceHandle handle_;
+    const int interface_number_;
+    int alternate_setting_;
+
+    DISALLOW_COPY_AND_ASSIGN(InterfaceClaimer);
+  };
+
   struct Transfer {
     Transfer();
     ~Transfer();
 
     UsbTransferType transfer_type;
     scoped_refptr<net::IOBuffer> buffer;
+    scoped_refptr<InterfaceClaimer> claimed_interface;
     size_t length;
     UsbTransferCallback callback;
   };
+
+  // Refresh endpoint_map_ after ClaimInterface, ReleaseInterface and
+  // SetInterfaceAlternateSetting.
+  void RefreshEndpointMap();
 
   // Submits a transfer and starts tracking it. Retains the buffer and copies
   // the completion callback until the transfer finishes, whereupon it invokes
@@ -141,16 +171,33 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
                       const size_t length,
                       const UsbTransferCallback& callback);
 
-  // Close the current device handle without inform the corresponding UsbDevice.
+  // Normal code should not call this function. It is called by the platform's
+  // callback mechanism in such a way that it cannot be made private. Invokes
+  // the callbacks associated with a given transfer, and removes it from the
+  // in-flight transfer set.
+  void TransferComplete(PlatformUsbTransferHandle transfer);
+
+  // Closes the current device handle without inform the corresponding
+  // UsbDevice.
   void InternalClose();
 
   PlatformUsbDeviceHandle handle_;
 
-  // transfers_ tracks all in-flight transfers associated with this device,
-  // allowing the device to retain the buffer and callback associated with a
-  // transfer until such time that it completes. It is protected by lock_.
-  base::Lock lock_;
-  std::map<PlatformUsbTransferHandle, Transfer> transfers_;
+  scoped_refptr<UsbConfigDescriptor> interfaces_;
+
+  typedef std::map<int, scoped_refptr<InterfaceClaimer> > ClaimedInterfaceMap;
+  ClaimedInterfaceMap claimed_interfaces_;
+
+  typedef std::map<PlatformUsbTransferHandle, Transfer> TransferMap;
+  TransferMap transfers_;
+
+  // A map from endpoints to interfaces
+  typedef std::map<int, int> EndpointMap;
+  EndpointMap endpoint_map_;
+
+  // Retain the UsbContext so that the platform context will not be destroyed
+  // before this handle.
+  scoped_refptr<UsbContext> context_;
 
   base::ThreadChecker thread_checker_;
 
