@@ -30,6 +30,10 @@ class UsbConfigDescriptor;
 class UsbDevice;
 class UsbInterface;
 
+namespace base {
+  class MessageLoopProxy;
+}  // namespace base
+
 namespace net {
 class IOBuffer;
 }  // namespace net
@@ -126,37 +130,8 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
  private:
   friend void HandleTransferCompletion(PlatformUsbTransferHandle handle);
 
-  class InterfaceClaimer : public base::RefCountedThreadSafe<InterfaceClaimer> {
-   public:
-    InterfaceClaimer(const PlatformUsbDeviceHandle handle,
-                     const int interface_number);
-    int alternate_setting() const { return alternate_setting_; }
-    void set_alternate_setting(const int alternate_setting) {
-      alternate_setting_ = alternate_setting;
-    }
-
-   private:
-    friend class UsbDevice;
-    friend class base::RefCountedThreadSafe<InterfaceClaimer>;
-    ~InterfaceClaimer();
-
-    const PlatformUsbDeviceHandle handle_;
-    const int interface_number_;
-    int alternate_setting_;
-
-    DISALLOW_COPY_AND_ASSIGN(InterfaceClaimer);
-  };
-
-  struct Transfer {
-    Transfer();
-    ~Transfer();
-
-    UsbTransferType transfer_type;
-    scoped_refptr<net::IOBuffer> buffer;
-    scoped_refptr<InterfaceClaimer> claimed_interface;
-    size_t length;
-    UsbTransferCallback callback;
-  };
+  class InterfaceClaimer;
+  struct Transfer;
 
   // Refresh endpoint_map_ after ClaimInterface, ReleaseInterface and
   // SetInterfaceAlternateSetting.
@@ -169,16 +144,14 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
                       UsbTransferType transfer_type,
                       net::IOBuffer* buffer,
                       const size_t length,
+                      scoped_refptr<base::MessageLoopProxy> message_loop_proxy,
                       const UsbTransferCallback& callback);
 
-  // Normal code should not call this function. It is called by the platform's
-  // callback mechanism in such a way that it cannot be made private. Invokes
-  // the callbacks associated with a given transfer, and removes it from the
-  // in-flight transfer set.
+  // Invokes the callbacks associated with a given transfer, and removes it from
+  // the in-flight transfer set.
   void TransferComplete(PlatformUsbTransferHandle transfer);
 
-  // Closes the current device handle without inform the corresponding
-  // UsbDevice.
+  // Informs the object to drop internal references.
   void InternalClose();
 
   PlatformUsbDeviceHandle handle_;
