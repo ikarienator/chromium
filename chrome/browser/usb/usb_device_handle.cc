@@ -543,6 +543,12 @@ void UsbDeviceHandle::SubmitTransfer(
     scoped_refptr<base::MessageLoopProxy> message_loop_proxy,
     const UsbTransferCallback& callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
+  if (!device_) {
+    message_loop_proxy->PostTask(
+        FROM_HERE,
+        base::Bind(callback, USB_TRANSFER_DISCONNECT,
+                   make_scoped_refptr(buffer), 0));
+  }
 
   unsigned char address = handle->endpoint & LIBUSB_ENDPOINT_ADDRESS_MASK;
   if (!ContainsKey(endpoint_map_, address)) {
