@@ -64,7 +64,8 @@ class ExitObserver : public content::NotificationObserver {
 using content::BrowserThread;
 
 UsbService::UsbService()
-    : context_(new UsbContext()) {
+    : context_(new UsbContext()),
+      next_unique_id_(0) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
 }
 
@@ -167,12 +168,22 @@ void UsbService::FindDevicesImpl(
   RefreshDevices();
 
   for (DeviceMap::iterator it = devices_.begin();
-      it != devices_.end();   ++it) {
+      it != devices_.end(); ++it) {
     if (DeviceMatches(it->second, vendor_id, product_id))
       devices->push_back(it->second);
   }
 
   callback.Run(devices.Pass());
+}
+
+scoped_refptr<UsbDevice> UsbService::GetDeviceById(uint32 unique_id) {
+  RefreshDevices();
+  for (DeviceMap::iterator it = devices_.begin();
+      it != devices_.end(); ++it) {
+    if (it->second->unique_id() == unique_id)
+      return it->second;
+  }
+  return NULL;
 }
 
 void UsbService::RefreshDevices() {
@@ -193,9 +204,10 @@ void UsbService::RefreshDevices() {
       if (0 != libusb_get_device_descriptor(platform_devices[i], &descriptor))
         continue;
       UsbDevice* new_device = new UsbDevice(context_,
-                                        platform_devices[i],
-                                        descriptor.idVendor,
-                                        descriptor.idProduct);
+                                            platform_devices[i],
+                                            descriptor.idVendor,
+                                            descriptor.idProduct,
+                                            ++next_unique_id_);
       devices_[platform_devices[i]] = new_device;
       connected_devices.insert(new_device);
     } else {

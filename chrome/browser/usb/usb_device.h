@@ -28,6 +28,7 @@ class UsbDevice : public base::RefCountedThreadSafe<UsbDevice> {
   PlatformUsbDevice platform_device() const { return platform_device_; }
   uint16 vendor_id() const { return vendor_id_; }
   uint16 product_id() const { return product_id_; }
+  uint32 unique_id() const { return unique_id_; }
 
   // Creates a UsbDeviceHandle for further manipulation.
   // Blocking method. Must be called on FILE thread.
@@ -52,7 +53,8 @@ class UsbDevice : public base::RefCountedThreadSafe<UsbDevice> {
   UsbDevice(scoped_refptr<UsbContext> context,
             PlatformUsbDevice platform_device,
             uint16 vendor_id,
-            uint16 product_id);
+            uint16 product_id,
+            uint32 unique_id);
 
   // Constructor called in test only.
   UsbDevice();
@@ -65,6 +67,7 @@ class UsbDevice : public base::RefCountedThreadSafe<UsbDevice> {
   PlatformUsbDevice platform_device_;
   uint16 vendor_id_;
   uint16 product_id_;
+  uint32 unique_id_;
 
   // Retain the context so that it will not be released before UsbDevice.
   scoped_refptr<UsbContext> context_;
