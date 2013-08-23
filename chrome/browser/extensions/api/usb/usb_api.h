@@ -64,8 +64,6 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
 
   UsbFindDevicesFunction();
 
-  static void SetDeviceForTest(UsbDevice* device);
-
  protected:
   virtual ~UsbFindDevicesFunction();
 
@@ -79,6 +77,45 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
   scoped_ptr<base::ListValue> result_;
   std::vector<scoped_refptr<UsbDeviceHandle> > device_handles_;
   scoped_ptr<extensions::api::usb::FindDevices::Params> parameters_;
+};
+
+class UsbGetDevicesFunction : public UsbAsyncApiFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("usb.getDevices", USB_GETDEVICES)
+
+  UsbGetDevicesFunction();
+
+  static void SetDeviceForTest(UsbDevice* device);
+
+  virtual bool Prepare() OVERRIDE;
+  virtual void AsyncWorkStart() OVERRIDE;
+
+ protected:
+  virtual ~UsbGetDevicesFunction();
+
+ private:
+  void EnumerationCompletedFileThread(
+      scoped_ptr<std::vector<scoped_refptr<UsbDevice> > > devices);
+
+  scoped_ptr<base::ListValue> result_;
+  scoped_ptr<extensions::api::usb::GetDevices::Params> parameters_;
+};
+
+class UsbOpenDeviceFunction : public UsbAsyncApiFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("usb.openDevice", USB_OPENDEVICE)
+
+  UsbOpenDeviceFunction();
+
+  virtual bool Prepare() OVERRIDE;
+  virtual void AsyncWorkStart() OVERRIDE;
+
+ protected:
+  virtual ~UsbOpenDeviceFunction();
+
+ private:
+  scoped_refptr<UsbDeviceHandle> handle_;
+  scoped_ptr<extensions::api::usb::OpenDevice::Params> parameters_;
 };
 
 class UsbListInterfacesFunction : public UsbAsyncApiFunction {

@@ -45,6 +45,9 @@ class UsbService {
       int interface_id,
       const base::Callback<void(ScopedDeviceVector vector)>& callback);
 
+
+  scoped_refptr<UsbDevice> GetDeviceById(uint32 unique_id);
+
   // Get all of the devices attached to the system, inserting them into
   // |devices|. Clears |devices| before use. The result will be sorted by id
   // in increasing order. Must be called on FILE thread.
@@ -85,6 +88,8 @@ class UsbService {
   void RefreshDevices();
 
   scoped_refptr<UsbContext> context_;
+
+  uint32 next_unique_id_;
 
   // The map from PlatformUsbDevices to UsbDevices.
   typedef std::map<PlatformUsbDevice, scoped_refptr<UsbDevice> > DeviceMap;

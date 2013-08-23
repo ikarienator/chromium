@@ -19,13 +19,37 @@ namespace usb {
   enum SynchronizationType {asynchronous, adaptive, synchronous};
   enum UsageType {data, feedback, explicitFeedback};
 
-  // A Device encapsulates everything that is needed to communicate with a USB
-  // device. They are returned by findDevice calls and have all of their
-  // fields populated before being returned.
+  // Returned by |getDevices| to identify a connected USB device.
+  //
+  // |vendorId| and |produceId| will always be presented by |getDevices| calls
+  // but they only serve as checksums. You can use a directionary with only
+  // the |device| field to identify the USB device.
+  //
   dictionary Device {
+    // The id of the USB device. It remains unchanged until the device is
+    // unplugged.
+    long device;
+    long? vendorId;
+    long? productId;
+  };
+
+  // Returned by |openDevice| to be used for USB communication. Every time a
+  // device is opened, a new device handle is created. All device handles can
+  // work together if the device allows it. The device handle will be closed
+  // when the app is reloaded or suspended.
+  //
+  // |vendorId| and |produceId| will always be presented by |findDevices| and
+  // |openDevice| calls but they only serve as checksums. You can use a
+  // directionary with only the |handle| field to identify the device handle.
+  //
+  // When a device handle is closed by calling |closeDevice| or unplug the 
+  // device physically, all the interfaces it claimed will be released and all
+  // the flying transfers will be canceled immediately.
+  dictionary DeviceHandle {
+    // The id of the device handle.
     long handle;
-    long vendorId;
-    long productId;
+    long? vendorId;
+    long? productId;
   };
 
   dictionary EndpointDescriptor {
@@ -121,109 +145,149 @@ namespace usb {
     ArrayBuffer? data;
   };
 
-  // FindDevicesOptions describes the properties of devices which are found and
-  // opened via findDevices.
-  dictionary FindDevicesOptions {
+  // Describes the properties of devices which are found via |getDevices| and
+  // |findDevices|.
+  dictionary EnumerateDevicesOptions {
+    long vendorId;
+    long productId;
+    long? interfaceId;
+  };
+
+  // Describes the properties of devices which are found via |getDevices| and
+  // |findDevices|.
+  dictionary EnumerateDevicesOptions2 {
     long vendorId;
     long productId;
     long? interfaceId;
   };
 
   callback VoidCallback = void ();
-  callback FindDevicesCallback = void (Device[] device);
+  callback GetDevicesCallback = void (Device[] devices);
+  callback OpenDeviceCallback = void (DeviceHandle handle);
+  callback FindDevicesCallback = void (DeviceHandle[] handles);
   callback ListInterfacesCallback = void (InterfaceDescriptor[] descriptors);
   callback CloseDeviceCallback = void ();
   callback TransferCallback = void (TransferResultInfo info);
   callback ResetDeviceCallback = void(boolean result);
 
   interface Functions {
-    // Finds the first instance of the USB device specified by the vendorId/
-    // productId pair and, if permissions allow, opens it for use.
-    // Upon successfully opening a device the callback is invoked with a
-    // populated Device object. On failure, the callback is invoked with null.
+    // Lists USB devices specified by vendorId/productId pair.
     // |options|: The properties to search for on target devices.
-    // |callback|: Invoked with the opened Device on success.
-    static void findDevices(FindDevicesOptions options,
-        FindDevicesCallback callback);
+    // |callback|: Invoked with a list of |Device|s on complete.
+    static void getDevices(EnumerateDevicesOptions options,
+                           GetDevicesCallback callback);
 
-    // Closes an open device instance. Invoking operations on a device after it
+    // Opens a USB device retured by |getDevices|.
+    // |device|: The device to open.
+    // |callback|: Invoked with the created DeviceHandle on complete.
+    static void openDevice(Device device, OpenDeviceCallback callback);
+
+    // Finds USB devices specified by the vendorId/productId pair and,
+    // if permissions allow, opens them for use.
+    //
+    // If a device is failed to be opend, its handles will not be returned.
+    //
+    // Calling this method is equivalent to a |getDevices| followed by
+    // a series of |openDevice| calls, then collect all the successfully opened
+    // device handles.
+    // |options|: The properties to search for on target devices.
+    // |callback|: Invoked with the opened DeviceHandle on complete.
+    static void findDevices(EnumerateDevicesOptions2 options,
+                            FindDevicesCallback callback);
+
+    // Closes a device handle. Invoking operations on a device after it
     // has been closed is a safe operation, but causes no action to be taken.
-    // |device|: The device to close.
+    // |handle|: The device handle to close.
     // |callback|: The callback to invoke once the device is closed.
-    static void closeDevice(Device device,
-        optional CloseDeviceCallback callback);
+    static void closeDevice(DeviceHandle handle,
+                            optional CloseDeviceCallback callback);
 
     // Lists all the interfaces on the USB device.
-    // |device|: The device from which the interfaces should be listed.
+    // |handle|: The device from which the interfaces should be listed.
     // |callback|: The callback to invoke when the interfaces are enumerated.
-    static void listInterfaces(Device device,
-        ListInterfacesCallback callback);
+    static void listInterfaces(DeviceHandle handle,
+                               ListInterfacesCallback callback);
 
     // Claims an interface on the specified USB device.
-    // |device|: The device on which the interface is to be claimed.
+    // Before you can transfer data with endpoints, you must claim their parent
+    // interfaces. Only one device handle on the same host can claim each
+    // interface. If the interface is claimed by other process of other device
+    // handle of the same process, the call will fail.
+    //
+    // You shall call releaseInterface when the interface is not needed anymore.
+    //
+    // |handle|: The device on which the interface is to be claimed.
     // |interface|: The interface number to be claimed.
     // |callback|: The callback to invoke once the interface is claimed.
-    static void claimInterface(Device device, long interfaceNumber,
-        VoidCallback callback);
+    static void claimInterface(DeviceHandle handle, long interfaceNumber,
+                               VoidCallback callback);
 
     // Releases a claim to an interface on the provided device.
-    // |device|: The device on which the interface is to be released.
+    // |handle|: The device on which the interface is to be released.
     // |interface|: The interface number to be released.
     // |callback|: The callback to invoke once the interface is released.
-    static void releaseInterface(Device device, long interfaceNumber,
-        VoidCallback callback);
+    static void releaseInterface(DeviceHandle handle, long interfaceNumber,
+                                 VoidCallback callback);
 
     // Selects an alternate setting on a previously claimed interface on a
     // device.
-    // |device|: The device on which the interface settings are to be set.
+    // |handle|: The device on which the interface settings are to be set.
     // |interface|: The interface number to be set.
     // |alternateSetting|: The alternate setting to set.
     // |callback|: The callback to invoke once the interface setting is set.
-    static void setInterfaceAlternateSetting(Device device,
-        long interfaceNumber, long alternateSetting, VoidCallback callback);
+    static void setInterfaceAlternateSetting(DeviceHandle handle,
+                                             long interfaceNumber,
+                                             long alternateSetting,
+                                             VoidCallback callback);
 
     // Performs a control transfer on the specified device. See the
     // ControlTransferInfo structure for the parameters required to make a
     // transfer.
-    // |device|: An open device to make the transfer on.
+    //
+    // Conceptually control transfer talks to the device itself. You do not need
+    // to claim interface 0 to perform a control transfer.
+    //
+    // |handle|: A device handle to make the transfer on.
     // |transferInfo|: The parameters to the transfer. See ControlTransferInfo.
     // |callback|: Invoked once the transfer has completed.
-    static void controlTransfer(Device device,
-        ControlTransferInfo transferInfo, TransferCallback callback);
+    static void controlTransfer(DeviceHandle handle,
+                                ControlTransferInfo transferInfo,
+                                TransferCallback callback);
 
     // Performs a bulk transfer on the specified device.
-    // |device|: An open device to make the transfer on.
+    // |handle|: A device handle to make the transfer on.
     // |transferInfo|: The paramters to the transfer. See GenericTransferInfo.
     // |callback|: Invoked once the transfer has completed.
-    static void bulkTransfer(Device device, GenericTransferInfo transferInfo,
-        TransferCallback callback);
+    static void bulkTransfer(DeviceHandle handle,
+                             GenericTransferInfo transferInfo,
+                             TransferCallback callback);
 
     // Performs an interrupt transfer on the specified device.
-    // |device|: An open device to make the transfer on.
+    // |handle|: A device handle to make the transfer on.
     // |transferInfo|: The paramters to the transfer. See GenericTransferInfo.
     // |callback|: Invoked once the transfer has completed.
-    static void interruptTransfer(Device device,
-        GenericTransferInfo transferInfo, TransferCallback callback);
+    static void interruptTransfer(DeviceHandle handle,
+                                  GenericTransferInfo transferInfo,
+                                  TransferCallback callback);
 
     // Performs an isochronous transfer on the specific device.
-    // |device|: An open device to make the transfer on.
+    // |handle|: A device handle to make the transfer on.
     // |transferInfo|: The parameters to the transfer. See
     // IsochronousTransferInfo.
     // |callback|: Invoked once the transfer has been completed.
-    static void isochronousTransfer(Device device,
-        IsochronousTransferInfo transferInfo,
-        TransferCallback callback);
+    static void isochronousTransfer(DeviceHandle handle,
+                                    IsochronousTransferInfo transferInfo,
+                                    TransferCallback callback);
 
-    // Try to reset the USB device and restore the previous status.
+    // Tries to reset the USB device and restores it to the previous status.
+    // If the reset fails, the given device handle will be closed and the USB
+    // device will appear to be disconected then reconnected. That case you must
+    // call |getDevices| or |findDevices| again to acquire the device.
     //
-    // If the reset fails, the given device will be closed and the USB device
-    // will appear to be disconected and reconnected.
-    // You must call <code>findDevice</code> again to acquire the device.
-    //
-    // |device|: An opened device to reset.
+    // |handle|: A device handle to reset.
     // |callback|: Invoked once the device is reset with a boolean indicating
     // whether the reset is completed successfully.
-    static void resetDevice(Device device,
-        ResetDeviceCallback callback);
+    static void resetDevice(DeviceHandle handle,
+                            ResetDeviceCallback callback);
   };
 };

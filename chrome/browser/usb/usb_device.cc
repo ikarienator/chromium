@@ -18,10 +18,12 @@ UsbDevice::UsbDevice(
     scoped_refptr<UsbContext> context,
     PlatformUsbDevice platform_device,
     uint16 vendor_id,
-    uint16 product_id)
+    uint16 product_id,
+    uint32 unique_id)
     : platform_device_(platform_device),
       vendor_id_(vendor_id),
       product_id_(product_id),
+      unique_id_(unique_id),
       context_(context) {
   CHECK(platform_device) << "platform_device cannot be NULL";
   libusb_ref_device(platform_device);
@@ -31,6 +33,7 @@ UsbDevice::UsbDevice()
     : platform_device_(NULL),
       vendor_id_(0),
       product_id_(0),
+      unique_id_(0),
       context_(NULL) {
 }
 
