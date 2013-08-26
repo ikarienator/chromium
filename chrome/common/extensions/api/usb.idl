@@ -22,7 +22,7 @@ namespace usb {
   // Returned by |getDevices| to identify a connected USB device.
   //
   // |vendorId| and |produceId| will always be presented by |getDevices| calls
-  // but they only serve as checksums. You can use a directionary with only
+  // but they only serve as checksums. You can use a dictionary with only
   // the |device| field to identify the USB device.
   //
   dictionary Device {
@@ -40,7 +40,7 @@ namespace usb {
   //
   // |vendorId| and |produceId| will always be presented by |findDevices| and
   // |openDevice| calls but they only serve as checksums. You can use a
-  // directionary with only the |handle| field to identify the device handle.
+  // dictionary with only the |handle| field to identify the device handle.
   //
   // When a device handle is closed by calling |closeDevice| or unplugging the 
   // device physically, all the interfaces it claimed will be released and all
@@ -97,7 +97,7 @@ namespace usb {
     // this field is ignored.
     long? length;
 
-    // The data payload carried by this transfer. If this is an output tranfer
+    // The data payload carried by this transfer. If this is an output transfer
     // then this field must be set.
     ArrayBuffer? data;
   };
@@ -153,14 +153,6 @@ namespace usb {
     long? interfaceId;
   };
 
-  // Describes the properties of devices which are found via |getDevices| and
-  // |findDevices|.
-  dictionary EnumerateDevicesOptions2 {
-    long vendorId;
-    long productId;
-    long? interfaceId;
-  };
-
   callback VoidCallback = void ();
   callback GetDevicesCallback = void (Device[] devices);
   callback OpenDeviceCallback = void (DeviceHandle handle);
@@ -177,7 +169,7 @@ namespace usb {
     static void getDevices(EnumerateDevicesOptions options,
                            GetDevicesCallback callback);
 
-    // Opens a USB device retured by |getDevices|.
+    // Opens a USB device returned by |getDevices|.
     // |device|: The device to open.
     // |callback|: Invoked with the created DeviceHandle on complete.
     static void openDevice(Device device, OpenDeviceCallback callback);
@@ -192,7 +184,7 @@ namespace usb {
     // device handles.
     // |options|: The properties to search for on target devices.
     // |callback|: Invoked with the opened DeviceHandle on complete.
-    static void findDevices(EnumerateDevicesOptions2 options,
+    static void findDevices(EnumerateDevicesOptions options,
                             FindDevicesCallback callback);
 
     // Closes a device handle. Invoking operations on a device after it
@@ -255,7 +247,7 @@ namespace usb {
 
     // Performs a bulk transfer on the specified device.
     // |handle|: A device handle to make the transfer on.
-    // |transferInfo|: The paramters to the transfer. See GenericTransferInfo.
+    // |transferInfo|: The parameters to the transfer. See GenericTransferInfo.
     // |callback|: Invoked once the transfer has completed.
     static void bulkTransfer(DeviceHandle handle,
                              GenericTransferInfo transferInfo,
@@ -263,7 +255,7 @@ namespace usb {
 
     // Performs an interrupt transfer on the specified device.
     // |handle|: A device handle to make the transfer on.
-    // |transferInfo|: The paramters to the transfer. See GenericTransferInfo.
+    // |transferInfo|: The parameters to the transfer. See GenericTransferInfo.
     // |callback|: Invoked once the transfer has completed.
     static void interruptTransfer(DeviceHandle handle,
                                   GenericTransferInfo transferInfo,
@@ -280,7 +272,7 @@ namespace usb {
 
     // Tries to reset the USB device and restores it to the previous status.
     // If the reset fails, the given device handle will be closed and the USB
-    // device will appear to be disconected then reconnected. In that case you 
+    // device will appear to be disconnected then reconnected. In that case you 
     // must call |getDevices| or |findDevices| again to acquire the device.
     //
     // |handle|: A device handle to reset.
