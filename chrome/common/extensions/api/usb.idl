@@ -42,9 +42,9 @@ namespace usb {
   // |openDevice| calls but they only serve as checksums. You can use a
   // directionary with only the |handle| field to identify the device handle.
   //
-  // When a device handle is closed by calling |closeDevice| or unplug the 
+  // When a device handle is closed by calling |closeDevice| or unplugging the 
   // device physically, all the interfaces it claimed will be released and all
-  // the flying transfers will be canceled immediately.
+  // the transfers in progress will be canceled immediately.
   dictionary DeviceHandle {
     // The id of the device handle.
     long handle;
@@ -185,10 +185,10 @@ namespace usb {
     // Finds USB devices specified by the vendorId/productId pair and,
     // if permissions allow, opens them for use.
     //
-    // If a device is failed to be opend, its handles will not be returned.
+    // If a device is failed to be opened, its handles will not be returned.
     //
     // Calling this method is equivalent to a |getDevices| followed by
-    // a series of |openDevice| calls, then collect all the successfully opened
+    // a series of |openDevice| calls, and returning all the successfully opened
     // device handles.
     // |options|: The properties to search for on target devices.
     // |callback|: Invoked with the opened DeviceHandle on complete.
@@ -211,8 +211,7 @@ namespace usb {
     // Claims an interface on the specified USB device.
     // Before you can transfer data with endpoints, you must claim their parent
     // interfaces. Only one device handle on the same host can claim each
-    // interface. If the interface is claimed by other process of other device
-    // handle of the same process, the call will fail.
+    // interface. If the interface is already claimed, this call will fail.
     //
     // You shall call releaseInterface when the interface is not needed anymore.
     //
@@ -281,8 +280,8 @@ namespace usb {
 
     // Tries to reset the USB device and restores it to the previous status.
     // If the reset fails, the given device handle will be closed and the USB
-    // device will appear to be disconected then reconnected. That case you must
-    // call |getDevices| or |findDevices| again to acquire the device.
+    // device will appear to be disconected then reconnected. In that case you 
+    // must call |getDevices| or |findDevices| again to acquire the device.
     //
     // |handle|: A device handle to reset.
     // |callback|: Invoked once the device is reset with a boolean indicating

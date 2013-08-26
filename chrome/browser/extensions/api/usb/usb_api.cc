@@ -21,19 +21,17 @@
 namespace usb = extensions::api::usb;
 namespace BulkTransfer = usb::BulkTransfer;
 namespace ClaimInterface = usb::ClaimInterface;
-namespace ListInterfaces = usb::ListInterfaces;
 namespace CloseDevice = usb::CloseDevice;
 namespace ControlTransfer = usb::ControlTransfer;
 namespace FindDevices = usb::FindDevices;
 namespace GetDevices = usb::GetDevices;
 namespace InterruptTransfer = usb::InterruptTransfer;
 namespace IsochronousTransfer = usb::IsochronousTransfer;
+namespace ListInterfaces = usb::ListInterfaces;
 namespace OpenDevice = usb::OpenDevice;
 namespace ReleaseInterface = usb::ReleaseInterface;
 namespace ResetDevice = usb::ResetDevice;
-namespace SetInterfaceAlternateSetting =
-    usb::SetInterfaceAlternateSetting;
-
+namespace SetInterfaceAlternateSetting = usb::SetInterfaceAlternateSetting;
 
 using content::BrowserThread;
 using std::string;
