@@ -214,6 +214,7 @@ v8.log
 /third_party/guava/src
 /third_party/httpcomponents-client
 /third_party/httpcomponents-core
+/third_party/hidapi/src
 /third_party/hunspell
 /third_party/hunspell_dictionaries
 /third_party/icu

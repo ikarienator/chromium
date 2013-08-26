@@ -49,6 +49,7 @@
             '../third_party/cacheinvalidation/cacheinvalidation.gyp:*',
             '../third_party/codesighs/codesighs.gyp:*',
             '../third_party/ffmpeg/ffmpeg.gyp:*',
+            '../third_party/hidapi/hidapi.gyp:*',
             '../third_party/iccjpeg/iccjpeg.gyp:*',
             '../third_party/libpng/libpng.gyp:*',
             '../third_party/libusb/libusb.gyp:*',

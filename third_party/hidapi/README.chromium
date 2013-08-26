@@ -1,0 +1,14 @@
+Name: hidapi
+URL: http://www.signal11.us/oss/hidapi/
+Version: 0.7.0+
+License: BSD
+License File: src/LICENSE-bsd.txt
+Security Critical: yes
+
+Description:
+HIDAPI is a multi-platform library which allows an application to interface with
+USB and Bluetooth HID-Class devices on Windows, Linux, and Mac OS X. While it
+can be used to communicate with standard HID devices like keyboards, mice, and
+Joysticks, it is most useful when used with custom (Vendor-Defined) HID devices.
+
+Local Modifications:

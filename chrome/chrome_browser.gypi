@@ -2558,6 +2558,7 @@
             '../testing/perf/perf_test.gyp:*',
             '../third_party/adobe/flash/flash_player.gyp:flapper_version_h',
             '../third_party/expat/expat.gyp:expat',
+            '../third_party/hidapi/hidapi.gyp:hidapi',
             '../third_party/hunspell/hunspell.gyp:hunspell',
             '../third_party/leveldatabase/leveldatabase.gyp:leveldatabase',
             '../third_party/libusb/libusb.gyp:libusb',
@@ -3087,6 +3088,7 @@
           ],
           'dependencies!': [
             '../components/components.gyp:web_modal',
+            '../third_party/hidapi/hidapi.gyp:hidapi',
             '../third_party/libusb/libusb.gyp:libusb',
           ],
           'sources': [

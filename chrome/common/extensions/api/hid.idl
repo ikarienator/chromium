@@ -1,0 +1,111 @@
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Use the <code>chrome.hid</code> API to interact with connected HID devices. 
+// This API provides access to HID operations from within the context of an app.
+// Using this API, apps can function as drivers for hardware devices.
+namespace hid {
+
+  // Returned by |getDevices| functions to describes a connected HID device.
+  // It can be opened with |openDevice| function to generating an 
+  // |HidConnection|.
+  dictionary HidDeviceInfo {
+    long deviceId;
+    long vendorId;
+    long productId;
+    long interfaceId;
+  };
+
+  // Returned by |openDevice| function to represent a communication session with
+  // an HID device.
+  // Must be closed with a |closeDevice| call.
+  dictionary HidConnection {
+    long connectionId;
+  };
+
+  // Searching criteria to enumerate devices with.
+  dictionary GetDevicesOptions {
+    long vendorId;
+    long productId;
+    // This field is only available on ChromeOS.
+    long? interfaceId;
+  };
+
+  callback GetDevicesCallback = void (HidDeviceInfo[] devices);
+  callback OpenDeviceCallback = void (HidConnection connection);
+  callback CloseDeviceCallback = void ();
+  // The callback to be invoked when a |read| call is finished.
+  // |reportId|: The id of the read record.
+  // |data|: The content of the report.
+  callback ReadCallback = void (long reportId, ArrayBuffer data);
+  callback WriteCallback = void();
+
+  interface Functions {
+    // Enumerate all the connected HID devices specified by the vendorId/
+    // productId/interfaceId tuple. The callback will be called with an array of
+    // |HidDeviceInfo|s.
+    // |options|: The properties to search for on target devices.
+    // |callback|: Invoked with the |HidDeviceInfo|s on success.
+    static void getDevices(GetDevicesOptions options,
+                           GetDevicesCallback callback);
+
+    // Open an HID device for communication.
+    // |deviceInfo|: The device to open.
+    // |callback|: Invoked with the created |HidConnection|.
+    static void openDevice(HidDeviceInfo deviceInfo,
+                           OpenDeviceCallback callback);
+
+    // Closes an open device instance. Invoking operations on a device after it
+    // has been closed is a safe operation, but causes no action to be taken.
+    // |connection|: The connection to close.
+    // |callback|: The callback to invoke once the device is closed.
+    static void closeDevice(HidConnection connection,
+                            optional CloseDeviceCallback callback);
+
+    // Read an Input report from a HID device.
+    //
+    // Input reports are returned to the host through the INTERRUPT IN endpoint.
+    // |connection|: The connection to read Input report from.
+    // |size|: The size to receive feature report.
+    // |callback|: The callback to invoke once the read is finished.
+    static void read(HidConnection connection,
+                     long size,
+                     ReadCallback callback);
+
+    // Write an Output report to a HID device.
+    // |write| will send the data on the first OUT endpoint, if one exists. 
+    // If it does not, it will send the data through the Control Endpoint.
+    //
+    // |connection|: The connection to write Output report to.
+    // |reportId|: Id of the report. For devices which only support a single
+    //             report, this must be set to 0.
+    // |data|: The data in the report.
+    // |callback|: The callback to invoke once the write is finished.
+    static void write(HidConnection connection,
+                      long reportId,
+                      ArrayBuffer data, WriteCallback callback);
+
+    // Get a Feature report from the device.
+    //
+    // |connection|: The connection to read Input report from.
+    // |size|: The size to receive feature report.
+    // |callback|: The callback to invoke once the write is finished.
+    static void getFeatureReport(HidConnection connection,
+                                 long size, 
+                                 ReadCallback callback);
+    
+    // Send a Feature report to the device.
+    //
+    // Feature reports are sent over the Control endpoint as a Set_Report 
+    // transfer.
+    // |connection|: The connection to read Input report from.
+    // |reportId|: Id of the report. For devices which only support a single
+    //             report, this must be set to 0.
+    // |data|: The data in the report.
+    // |callback|: The callback to invoke once the write is finished.
+    static void sendFeatureReport(HidConnection connection,
+                                  long reportId,
+                                  ArrayBuffer data, WriteCallback callback);
+  };
+};

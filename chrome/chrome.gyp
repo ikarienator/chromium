@@ -201,6 +201,7 @@
             }],
             ['OS=="android"', {
               'dependencies!': [
+                '../third_party/hidapi/hidapi.gyp:hidapi',
                 '../third_party/libusb/libusb.gyp:libusb',
               ],
               'sources!': [

@@ -88,6 +88,7 @@ class APIPermission {
     kFontSettings,
     kFullscreen,
     kGeolocation,
+    kHid,
     kHistory,
     kIdentity,
     kIdentityPrivate,

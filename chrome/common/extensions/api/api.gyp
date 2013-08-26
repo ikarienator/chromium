@@ -61,6 +61,7 @@
           'file_browser_handler_internal.json',
           'file_system.idl',
           'font_settings.json',
+          'hid.idl',
           'history.json',
           'i18n.json',
           'identity.idl',
@@ -162,6 +163,8 @@
             'test.json',
             'top_sites.json',
             'webview.json',
+            'hid.idl',
+            'usb.idl',
           ],
         }],
         ['OS!="chromeos"', {
