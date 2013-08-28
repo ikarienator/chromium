@@ -20,36 +20,26 @@ namespace usb {
   enum UsageType {data, feedback, explicitFeedback};
 
   // Returned by |getDevices| to identify a connected USB device.
-  //
-  // |vendorId| and |produceId| will always be presented by |getDevices| calls
-  // but they only serve as checksums. You can use a dictionary with only
-  // the |device| field to identify the USB device.
-  //
   dictionary Device {
     // The id of the USB device. It remains unchanged until the device is
     // unplugged.
     long device;
-    long? vendorId;
-    long? productId;
+    long vendorId;
+    long productId;
   };
 
   // Returned by |openDevice| to be used for USB communication. Every time a
   // device is opened, a new device handle is created. All device handles can
-  // work together if the device allows it. The device handle will be closed
-  // when the app is reloaded or suspended.
+  // work together if the device allows it. The device handle will be
+  // automatically closed when the app is reloaded or suspended.
   //
-  // |vendorId| and |produceId| will always be presented by |findDevices| and
-  // |openDevice| calls but they only serve as checksums. You can use a
-  // dictionary with only the |handle| field to identify the device handle.
-  //
-  // When a device handle is closed by calling |closeDevice| or unplugging the 
-  // device physically, all the interfaces it claimed will be released and all
-  // the transfers in progress will be canceled immediately.
+  // When a device handle is closed, all the interfaces it claimed will be
+  // released and all the transfers in progress will be canceled immediately.
   dictionary DeviceHandle {
-    // The id of the device handle.
+    // The id of the USB device handle.
     long handle;
-    long? vendorId;
-    long? productId;
+    long vendorId;
+    long productId;
   };
 
   dictionary EndpointDescriptor {
@@ -62,7 +52,7 @@ namespace usb {
     SynchronizationType? synchronization;
     UsageType? usage;
 
-    // If this is an interrupt endpoint, this will be 1-255
+    // If this is an interrupt endpoint, this will be 1-255.
     long? pollingInterval;
   };
 
@@ -163,7 +153,7 @@ namespace usb {
   callback ResetDeviceCallback = void(boolean result);
 
   interface Functions {
-    // Lists USB devices specified by vendorId/productId pair.
+    // Lists USB devices specified by vendorId/productId/interfaceId tuple.
     // |options|: The properties to search for on target devices.
     // |callback|: Invoked with a list of |Device|s on complete.
     static void getDevices(EnumerateDevicesOptions options,
@@ -174,8 +164,8 @@ namespace usb {
     // |callback|: Invoked with the created DeviceHandle on complete.
     static void openDevice(Device device, OpenDeviceCallback callback);
 
-    // Finds USB devices specified by the vendorId/productId pair and,
-    // if permissions allow, opens them for use.
+    // Finds USB devices specified by the vendorId/productId/interfaceId tuple
+    // and, if permissions allow, opens them for use.
     //
     // If a device is failed to be opened, its handles will not be returned.
     //
@@ -272,7 +262,7 @@ namespace usb {
 
     // Tries to reset the USB device and restores it to the previous status.
     // If the reset fails, the given device handle will be closed and the USB
-    // device will appear to be disconnected then reconnected. In that case you 
+    // device will appear to be disconnected then reconnected. In that case you
     // must call |getDevices| or |findDevices| again to acquire the device.
     //
     // |handle|: A device handle to reset.

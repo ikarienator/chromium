@@ -58,6 +58,7 @@ const char kDataKey[] = "data";
 const char kResultCodeKey[] = "resultCode";
 
 const char kErrorOpen[] = "Failed to open device.";
+const char kErrorChecksum[] = "Illegal input.";
 const char kErrorCancelled[] = "Transfer was cancelled.";
 const char kErrorDisconnect[] = "Device disconnected.";
 const char kErrorGeneric[] = "Transfer failed.";
@@ -310,17 +311,31 @@ base::DictionaryValue* CreateTransferInfo(
 base::Value* PopulateDeviceHandle(int handle, int vendor_id, int product_id) {
   DeviceHandle result;
   result.handle = handle;
-  result.vendor_id.reset(new int(vendor_id));
-  result.product_id.reset(new int(product_id));
+  result.vendor_id = vendor_id;
+  result.product_id = product_id;
   return result.ToValue().release();
 }
 
 base::Value* PopulateDevice(UsbDevice* device) {
   Device result;
   result.device = device->unique_id();
-  result.vendor_id.reset(new int(device->vendor_id()));
-  result.product_id.reset(new int(device->product_id()));
+  result.vendor_id = device->vendor_id();
+  result.product_id = device->product_id();
   return result.ToValue().release();
+}
+
+bool CheckDeviceInput(const Device& input_device,
+                      scoped_refptr<UsbDevice> device) {
+  return device->vendor_id() == input_device.vendor_id &&
+         device->product_id() == input_device.product_id;
+}
+
+bool CheckDeviceHandleInput(const DeviceHandle& input_device_handle,
+                            scoped_refptr<UsbDeviceHandle> device_handle) {
+  return device_handle->device()->vendor_id() ==
+             input_device_handle.vendor_id &&
+         device_handle->device()->product_id() ==
+             input_device_handle.product_id;
 }
 
 base::Value* PopulateInterfaceDescriptor(
@@ -561,17 +576,8 @@ void UsbOpenDeviceFunction::AsyncWorkStart() {
     return;
   }
 
-  if (parameters_->device.vendor_id &&
-      *parameters_->device.vendor_id.get() != device->vendor_id()) {
-    SetError(kErrorOpen);
-    AsyncWorkCompleted();
-    return;
-  }
-
-  if (parameters_->device.product_id &&
-      *parameters_->device.product_id.get() != device->product_id()) {
-    SetError(kErrorOpen);
-    AsyncWorkCompleted();
+  if (!CheckDeviceInput(parameters_->device, device)) {
+    CompleteWithError(kErrorChecksum);
     return;
   }
 
@@ -604,6 +610,11 @@ void UsbListInterfacesFunction::AsyncWorkStart() {
       parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
+    return;
+  }
+
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
     return;
   }
 
@@ -730,6 +741,11 @@ void UsbCloseDeviceFunction::AsyncWorkStart() {
     return;
   }
 
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
+    return;
+  }
+
   resource->device()->Close();
   RemoveUsbDeviceResource(parameters_->handle.handle);
   AsyncWorkCompleted();
@@ -750,6 +766,11 @@ void UsbClaimInterfaceFunction::AsyncWorkStart() {
       GetUsbDeviceResource(parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
+    return;
+  }
+
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
     return;
   }
 
@@ -778,6 +799,12 @@ void UsbReleaseInterfaceFunction::AsyncWorkStart() {
     CompleteWithError(kErrorNoDevice);
     return;
   }
+
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
+    return;
+  }
+
   bool success =
       resource->device()->ReleaseInterface(parameters_->interface_number);
   if (!success)
@@ -805,6 +832,11 @@ void UsbSetInterfaceAlternateSettingFunction::AsyncWorkStart() {
     return;
   }
 
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
+    return;
+  }
+
   bool success = resource->device()->SetInterfaceAlternateSetting(
       parameters_->interface_number,
       parameters_->alternate_setting);
@@ -829,6 +861,11 @@ void UsbControlTransferFunction::AsyncWorkStart() {
       parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
+    return;
+  }
+
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
     return;
   }
 
@@ -889,6 +926,11 @@ void UsbBulkTransferFunction::AsyncWorkStart() {
     return;
   }
 
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
+    return;
+  }
+
   const GenericTransferInfo& transfer = parameters_->transfer_info;
 
   UsbEndpointDirection direction;
@@ -938,6 +980,11 @@ void UsbInterruptTransferFunction::AsyncWorkStart() {
     return;
   }
 
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
+    return;
+  }
+
   const GenericTransferInfo& transfer = parameters_->transfer_info;
 
   UsbEndpointDirection direction;
@@ -984,6 +1031,11 @@ void UsbIsochronousTransferFunction::AsyncWorkStart() {
       parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
+    return;
+  }
+
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
     return;
   }
 
@@ -1051,6 +1103,11 @@ void UsbResetDeviceFunction::AsyncWorkStart() {
       parameters_->handle.handle);
   if (!resource) {
     CompleteWithError(kErrorNoDevice);
+    return;
+  }
+
+  if (!CheckDeviceHandleInput(parameters_->handle, resource->device())) {
+    CompleteWithError(kErrorChecksum);
     return;
   }
 
