@@ -9,12 +9,8 @@ function getDevices() {
       vendorId: 0,
       productId: 0
   }, function(devices) {
-    usb.openDevice({
-      device: devices[0].device
-    }, function(handle) {
-      usb.closeDevice({
-        handle: handle.handle
-      });
+    usb.openDevice(devices[0], function(handle) {
+      usb.closeDevice(handle);
       chrome.test.succeed();
     });
   });
@@ -30,4 +26,6 @@ function explicitCloseDevice() {
   });
 }
 
-chrome.test.runTests([getDevices, explicitCloseDevice]);
+chrome.test.runTests([
+    getDevices, explicitCloseDevice
+]);
