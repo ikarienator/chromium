@@ -901,7 +901,6 @@
           ],
           'dependencies!': [
             '../device/bluetooth/bluetooth.gyp:device_bluetooth',
-            '../third_party/libusb/libusb.gyp:libusb'
           ],
         }],
         ['use_aura==1', {

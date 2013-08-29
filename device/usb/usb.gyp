@@ -13,9 +13,23 @@
       'include_dirs': [
         '../..',
       ],
+      'dependencies': [
+        '../../third_party/libusb/libusb.gyp:libusb',
+      ],
       'sources': [
+        'usb_context.cc',
+        'usb_context.h',
+        'usb_device_handle.cc',
+        'usb_device_handle.h',
+        'usb_device.cc',
+        'usb_device.h',
+        'usb_device.cc',
         'usb_ids.cc',
         'usb_ids.h',
+        'usb_interface.cc',
+        'usb_interface.h',
+        'usb_service.cc',
+        'usb_service.h',
       ],
       'actions': [
         {

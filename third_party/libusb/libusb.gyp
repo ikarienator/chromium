@@ -27,6 +27,7 @@
         'src/libusb',
         'src/libusb/os',
       ],
+     
       'direct_dependent_settings': {
         'include_dirs': [
           'src/libusb',
@@ -55,6 +56,9 @@
             'src/libusb/os/linux_udev.c',
             'src/libusb/os/linux_usbfs.c',
             'src/libusb/os/linux_usbfs.h',
+          ],
+          'dependencies': [
+            '../../build/linux/system.gyp:udev',
           ],
           'defines': [
             'HAVE_LIBUDEV=1',

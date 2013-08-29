@@ -12,9 +12,9 @@
 #include "base/memory/scoped_ptr.h"
 #include "chrome/browser/extensions/api/api_function.h"
 #include "chrome/browser/extensions/api/api_resource_manager.h"
-#include "chrome/browser/usb/usb_device.h"
-#include "chrome/browser/usb/usb_device_handle.h"
 #include "chrome/common/extensions/api/usb.h"
+#include "device/usb/usb_device.h"
+#include "device/usb/usb_device_handle.h"
 #include "net/base/io_buffer.h"
 
 class UsbDeviceHandle;

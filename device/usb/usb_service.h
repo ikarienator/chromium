@@ -11,7 +11,7 @@
 
 #include "base/basictypes.h"
 #include "base/memory/singleton.h"
-#include "chrome/browser/usb/usb_device.h"
+#include "device/usb/usb_device.h"
 
 namespace base {
 

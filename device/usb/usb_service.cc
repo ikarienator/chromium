@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/usb/usb_service.h"
+#include "device/usb/usb_service.h"
 
 #include <set>
 #include <vector>
@@ -12,12 +12,12 @@
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "chrome/browser/chrome_notification_types.h"
-#include "chrome/browser/usb/usb_context.h"
-#include "chrome/browser/usb/usb_device_handle.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
 #include "content/public/browser/notification_service.h"
+#include "device/usb/usb_context.h"
+#include "device/usb/usb_device_handle.h"
 #include "third_party/libusb/src/libusb/libusb.h"
 
 #if defined(OS_CHROMEOS)

@@ -39,7 +39,6 @@
         '../third_party/cacheinvalidation/cacheinvalidation.gyp:cacheinvalidation_proto_cpp',
         '../third_party/icu/icu.gyp:icui18n',
         '../third_party/icu/icu.gyp:icuuc',
-        '../third_party/libusb/libusb.gyp:libusb',
         '../third_party/libxml/libxml.gyp:libxml',
         '../third_party/zlib/zlib.gyp:zlib',
         '../ui/base/strings/ui_strings.gyp:ui_strings',
@@ -2535,7 +2534,6 @@
           'dependencies!': [
             'safe_browsing_proto',
             'safe_browsing_report_proto',
-            '../third_party/libusb/libusb.gyp:libusb',
           ],
         }],
         ['toolkit_views == 0', {

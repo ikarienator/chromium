@@ -11,7 +11,7 @@
 #include "base/basictypes.h"
 #include "base/memory/ref_counted.h"
 #include "base/threading/thread_checker.h"
-#include "chrome/browser/usb/usb_interface.h"
+#include "device/usb/usb_interface.h"
 
 struct libusb_device;
 class UsbDeviceHandle;

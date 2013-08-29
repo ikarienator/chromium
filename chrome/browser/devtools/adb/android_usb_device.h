@@ -9,7 +9,7 @@
 #include <queue>
 #include <vector>
 #include "base/memory/ref_counted.h"
-#include "chrome/browser/usb/usb_device_handle.h"
+#include "device/usb/usb_device_handle.h"
 
 namespace base {
 class MessageLoop;

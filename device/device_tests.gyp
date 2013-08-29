@@ -29,6 +29,7 @@
         'bluetooth/bluetooth_task_manager_win_unittest.cc',
         'bluetooth/bluetooth_utils_unittest.cc',
         'test/run_all_unittests.cc',
+        'usb/usb_context_unittest.cc',
         'usb/usb_ids_unittest.cc',
       ],
       'conditions': [

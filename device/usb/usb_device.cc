@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/usb/usb_device.h"
+#include "device/usb/usb_device.h"
 
 #include <algorithm>
 
 #include "base/stl_util.h"
-#include "chrome/browser/usb/usb_context.h"
-#include "chrome/browser/usb/usb_device_handle.h"
 #include "content/public/browser/browser_thread.h"
+#include "device/usb/usb_context.h"
+#include "device/usb/usb_device_handle.h"
 #include "third_party/libusb/src/libusb/libusb.h"
 
 using content::BrowserThread;

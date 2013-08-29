@@ -12,11 +12,11 @@
 #include "chrome/browser/extensions/api/usb/usb_device_resource.h"
 #include "chrome/browser/extensions/extension_system.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/usb/usb_device_handle.h"
-#include "chrome/browser/usb/usb_service.h"
 #include "chrome/common/extensions/api/usb.h"
 #include "chrome/common/extensions/permissions/permissions_data.h"
 #include "chrome/common/extensions/permissions/usb_device_permission.h"
+#include "device/usb/usb_device_handle.h"
+#include "device/usb/usb_service.h"
 
 namespace usb = extensions::api::usb;
 namespace BulkTransfer = usb::BulkTransfer;

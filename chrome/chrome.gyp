@@ -167,7 +167,6 @@
             '../third_party/icu/icu.gyp:icui18n',
             '../third_party/icu/icu.gyp:icuuc',
             '../third_party/leveldatabase/leveldatabase.gyp:leveldatabase',
-            '../third_party/libusb/libusb.gyp:libusb',
           ],
           'include_dirs': [
             '..',
@@ -208,9 +207,6 @@
               ],
             }],
             ['OS=="android"', {
-              'dependencies!': [
-                '../third_party/libusb/libusb.gyp:libusb',
-              ],
               'sources!': [
                 'browser/devtools/browser_list_tabcontents_provider.cc',
                 'browser/devtools/devtools_window.cc',
