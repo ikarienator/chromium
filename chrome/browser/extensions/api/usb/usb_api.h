@@ -17,6 +17,7 @@
 #include "chrome/common/extensions/api/usb.h"
 #include "net/base/io_buffer.h"
 
+class UsbDevice;
 class UsbDeviceHandle;
 class UsbService;
 
@@ -34,7 +35,12 @@ class UsbAsyncApiFunction : public AsyncApiFunction {
   virtual bool PrePrepare() OVERRIDE;
   virtual bool Respond() OVERRIDE;
 
-  UsbDeviceResource* GetUsbDeviceResource(int api_resource_id);
+  scoped_refptr<UsbDevice> GetDeviceOrOrCompleteWithError(
+      const extensions::api::usb::Device& input_device);
+
+  scoped_refptr<UsbDeviceHandle> GetDeviceHandleOrCompleteWithError(
+      const extensions::api::usb::ConnectionHandle& input_device_handle);
+
   void RemoveUsbDeviceResource(int api_resource_id);
 
   void CompleteWithError(const std::string& error);
@@ -72,10 +78,8 @@ class UsbFindDevicesFunction : public UsbAsyncApiFunction {
   virtual void AsyncWorkStart() OVERRIDE;
 
  private:
-  void EnumerationCompletedFileThread(
-      scoped_ptr<std::vector<scoped_refptr<UsbDevice> > > devices);
+  void OpenDevices(scoped_ptr<std::vector<scoped_refptr<UsbDevice> > > devices);
 
-  scoped_ptr<base::ListValue> result_;
   std::vector<scoped_refptr<UsbDeviceHandle> > device_handles_;
   scoped_ptr<extensions::api::usb::FindDevices::Params> parameters_;
 };
@@ -98,8 +102,25 @@ class UsbGetDevicesFunction : public UsbAsyncApiFunction {
   void EnumerationCompletedFileThread(
       scoped_ptr<std::vector<scoped_refptr<UsbDevice> > > devices);
 
-  scoped_ptr<base::ListValue> result_;
   scoped_ptr<extensions::api::usb::GetDevices::Params> parameters_;
+};
+
+class UsbRequestAccessFunction : public UsbAsyncApiFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("usb.requestAccess", USB_REQUESTACCESS)
+
+  UsbRequestAccessFunction();
+
+  virtual bool Prepare() OVERRIDE;
+  virtual void AsyncWorkStart() OVERRIDE;
+
+ protected:
+  virtual ~UsbRequestAccessFunction();
+
+  void OnCompleted(bool success);
+
+ private:
+  scoped_ptr<extensions::api::usb::RequestAccess::Params> parameters_;
 };
 
 class UsbOpenDeviceFunction : public UsbAsyncApiFunction {
