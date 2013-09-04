@@ -386,6 +386,23 @@ class SocketSetNoDelayFunction : public SocketAsyncApiFunction {
   scoped_ptr<api::socket::SetNoDelay::Params> params_;
 };
 
+class SocketSetDualStackFunction : public SocketAsyncApiFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("socket.setDualStack", SOCKET_SETDUALSTACK)
+
+ SocketSetDualStackFunction();
+
+ protected:
+  virtual ~SocketSetDualStackFunction();
+
+  // AsyncApiFunction:
+  virtual bool Prepare() OVERRIDE;
+  virtual void Work() OVERRIDE;
+
+ private:
+  scoped_ptr<api::socket::SetDualStack::Params> params_;
+};
+
 class SocketGetInfoFunction : public SocketAsyncApiFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("socket.getInfo", SOCKET_GETINFO)

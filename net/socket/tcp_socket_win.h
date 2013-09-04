@@ -44,6 +44,7 @@ class NET_EXPORT TCPSocketWin : NON_EXPORTED_BASE(public base::NonThreadSafe),
              const CompletionCallback& callback);
   int SetDefaultOptionsForServer();
   int SetExclusiveAddrUse();
+  int SetDualStack(bool dual_stack);
   void Close();
 
   const BoundNetLog& net_log() const { return net_log_; }

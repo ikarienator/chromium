@@ -45,6 +45,7 @@ class TCPSocket : public Socket {
                       const CompletionCallback& callback) OVERRIDE;
   virtual bool SetKeepAlive(bool enable, int delay) OVERRIDE;
   virtual bool SetNoDelay(bool no_delay) OVERRIDE;
+  virtual bool SetDualStack(bool dual_stack) OVERRIDE;
   virtual int Listen(const std::string& address, int port,
                      int backlog, std::string* error_msg) OVERRIDE;
   virtual void Accept(const AcceptCompletionCallback &callback) OVERRIDE;

@@ -112,6 +112,8 @@ namespace socket {
 
   callback SetNoDelayCallback = void (boolean result);
 
+  callback SetDualStackCallback = void (boolean result);
+
   callback GetInfoCallback = void (SocketInfo result);
 
   callback GetNetworkCallback = void (NetworkInterface[] result);
@@ -253,6 +255,23 @@ namespace socket {
     static void setNoDelay(long socketId,
                            boolean noDelay,
                            SetNoDelayCallback callback);
+
+    // Sets whether an IPv6 server socket runs on dual stack mode.
+    //
+    // An IPv6 server socket can accept both IPv4 and IPv6 incomming connections
+    // if it is running in dual stack mode. In dual stack mode, the peer address
+    // of incomming IPv6 sockets will be prefixed with high order
+    // "0:0:0:0:0:FFFF:" according to http://www.ietf.org/rfc/rfc4291.txt.
+    // For example "192.168.1.1" will be mapped to "0:0:0:0:0:FFFF:C0A8:101" or
+    // in compressed form, "::FFFF:C0A8:101".
+    //
+    // By default, dual stack mode is disabled.
+    // |socketId| : The socketId. Must be a socket listening on a IPv6 endpoint.
+    // |dualStack| : If true, set the socket to runs on dual stack mode.
+    // |callback| : Called when the setNoDelay attempt is complete.
+    static void setDualStack(long socketId,
+                             boolean dualStack,
+                             SetDualStackCallback callback);
 
     // Retrieves the state of the given socket.
     // |socketId| : The socketId.

@@ -187,6 +187,15 @@ int TCPSocketWin::SetExclusiveAddrUse() {
   return OK;
 }
 
+int TCPSocketWin::SetDualStack(bool dual_stack) {
+  int v6_only = dual_stack ? 0: 1;
+  int rv =
+      setsockopt(socket_, SOL_IPV6, IPV6_V6ONLY, &v6_only, sizeof(v6_only));
+  if (rv < 0)
+    return MapSystemError(errno);
+  return OK;
+}
+
 void TCPSocketWin::Close() {
   if (socket_ != INVALID_SOCKET) {
     if (closesocket(socket_) < 0)

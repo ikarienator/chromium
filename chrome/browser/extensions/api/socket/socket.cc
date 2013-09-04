@@ -93,6 +93,10 @@ bool Socket::SetNoDelay(bool no_delay) {
   return false;
 }
 
+bool Socket::SetDualStack(bool dual_stack) {
+  return false;
+}
+
 int Socket::Listen(const std::string& address, int port, int backlog,
                    std::string* error_msg) {
   *error_msg = kSocketTypeNotSupported;

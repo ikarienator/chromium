@@ -42,6 +42,7 @@ class NET_EXPORT TCPSocketLibevent : public base::NonThreadSafe,
              const CompletionCallback& callback);
   int SetDefaultOptionsForServer();
   int SetAddressReuse(bool allow);
+  int SetDualStack(bool dual_stack);
   void Close();
 
   const BoundNetLog& net_log() const { return net_log_; }

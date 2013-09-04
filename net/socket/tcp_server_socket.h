@@ -27,6 +27,8 @@ class NET_EXPORT_PRIVATE TCPServerSocket : public ServerSocket {
   virtual int Accept(scoped_ptr<StreamSocket>* socket,
                      const CompletionCallback& callback) OVERRIDE;
 
+  int SetDualStack(bool dual_stack);
+
  private:
   // Converts |accepted_socket_| and stores the result in
   // |output_accepted_socket|.

@@ -167,6 +167,11 @@ bool TCPSocket::SetNoDelay(bool no_delay) {
     return false;
   return socket_->SetNoDelay(no_delay);
 }
+bool TCPSocket::SetDualStack(bool dual_stack) {
+  if (!server_socket_.get())
+    return false;
+  return server_socket_->SetDualStack(dual_stack);
+}
 
 int TCPSocket::Listen(const std::string& address, int port, int backlog,
                       std::string* error_msg) {

@@ -604,6 +604,26 @@ void SocketSetNoDelayFunction::Work() {
   SetResult(new base::FundamentalValue(result));
 }
 
+SocketSetDualStackFunction::SocketSetDualStackFunction() {}
+
+SocketSetDualStackFunction::~SocketSetDualStackFunction() {}
+
+bool SocketSetDualStackFunction::Prepare() {
+  params_ = api::socket::SetDualStack::Params::Create(*args_);
+  EXTENSION_FUNCTION_VALIDATE(params_.get());
+  return true;
+}
+
+void SocketSetDualStackFunction::Work() {
+  bool result = false;
+  Socket* socket = GetSocket(params_->socket_id);
+  if (socket)
+    result = socket->SetDualStack(params_->dual_stack);
+  else
+    error_ = kSocketNotFoundError;
+  SetResult(new base::FundamentalValue(result));
+}
+
 SocketGetInfoFunction::SocketGetInfoFunction() {}
 
 SocketGetInfoFunction::~SocketGetInfoFunction() {}

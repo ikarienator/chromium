@@ -72,6 +72,7 @@ class Socket : public ApiResource {
 
   virtual bool SetKeepAlive(bool enable, int delay);
   virtual bool SetNoDelay(bool no_delay);
+  virtual bool SetDualStack(bool dual_stack);
   virtual int Listen(const std::string& address, int port, int backlog,
                      std::string* error_msg);
   virtual void Accept(const AcceptCompletionCallback &callback);

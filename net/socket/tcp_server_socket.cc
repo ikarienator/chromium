@@ -80,6 +80,10 @@ int TCPServerSocket::Accept(scoped_ptr<StreamSocket>* socket,
   return result;
 }
 
+int TCPServerSocket::SetDualStack(bool dual_stack) {
+  return socket_.SetDualStack(dual_stack);
+}
+
 int TCPServerSocket::ConvertAcceptedSocket(
     int result,
     scoped_ptr<StreamSocket>* output_accepted_socket) {
