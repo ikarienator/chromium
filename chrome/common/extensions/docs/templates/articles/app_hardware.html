@@ -22,8 +22,8 @@
 
 <p>
   You can use the <a href="usb.html">USB API</a> to communicate with USB devices
-  using only JavaScript code. Some devices are not accessible through this API -
-  see <a href="#caveats">Caveats</a> below for more details.
+  using only JavaScript code. Some devices are not accessible through this API
+  &ndash; see <a href="#caveats">Caveats</a> below for details.
 </p>
 
 <p>
@@ -31,8 +31,7 @@
   <a href="http://www.usb.org/home">USB specifications</a>. <br/>
   <a href="http://www.beyondlogic.org/usbnutshell/usb1.shtml">
     <i>USB in a NutShell</i></a>
-  is a reasonable crash course about it (you may be able to finish it within 24
-  hours).
+  is a reasonable crash course that you may find helpful.
 </p>
 
 <h3 id="manifest">Manifest requirement</h3>
@@ -45,16 +44,17 @@
 ]
 </pre>
 
-<p>In order to prevent
+<p>In addition, in order to prevent
   <a href="http://en.wikipedia.org/wiki/Device_fingerprint">finger-printing</a>,
-  you must declare all the device type you want to access in the manifest file.
-  Each USB device corresponds to a vendor id/product id (VID/PID) pair. You can
-  use $ref:chrome.usb.getDevices to enumerate devices by their VID/PID pair.
+  you must declare all the device types you want to access in the manifest file.
+  Each type of USB device corresponds to a vendor id/product id (VID/PID) pair.
+  You can use $ref:usb.getDevices to enumerate devices by their VID/PID
+  pair.
 </p>
 <p>
-  You must declare the VID/PID pair for each device you want to use under the
-  "usbDevices" permission in your app's manifest file, as shown in the example
-  below:</p>
+  You must declare the VID/PID pairs for each type of device you want to use
+  under the "usbDevices" permission in your app's manifest file, as shown in the
+  example below:</p>
 
 <pre>
 "permissions": [
@@ -74,11 +74,11 @@
 
 <p>
   To determine whether one or more specific devices are connected to a user's
-  system, use the $ref:chrome.usb.getDevices method:
+  system, use the $ref:usb.getDevices method:
 </p>
 
 <pre>
-chrome.usb.getDevices(EnumerateDevicesOptions options, GetDevicesCallback callback);
+chrome.usb.getDevices(enumerateDevicesOptions, callback);
 </pre>
 
 <br/>
@@ -90,11 +90,11 @@ chrome.usb.getDevices(EnumerateDevicesOptions options, GetDevicesCallback callba
   </tr>
   <tr>
     <td>EnumerateDevicesOptions (object)</td>
-    <td>An object specifying both a <code>vendorId</code> (long) and <code>productId</code>
-      (long) used to find the correct type of device on the bus. Your manifest
-      must declare the<code>usbDevices</code> permission section listing all the
-      <code>vendorId</code> and <code>deviceId</code> pairs your app wants to
-      access.
+    <td>An object specifying both a <code>vendorId</code> (long) and 
+      <code>productId</code> (long) used to find the correct type of device on
+      the bus. Your manifest must declare the <code>usbDevices</code> permission
+      section listing all the <code>vendorId</code> and <code>deviceId</code>
+      pairs your app wants to access.
     </td>
   </tr>
   <tr>
@@ -132,8 +132,8 @@ chrome.usb.getDevices({"vendorId": vendorId, "productId": productId}, onDeviceFo
 
 <h3 id="usb_open">Opening a device</h3>
 <p>
-Once the <code>Device</code> objects are returned, you can open it using
-$ref:chrome.usb.openDevice to obtain a connection handle. You can only
+Once the <code>Device</code> objects are returned, you can open a device using
+usb.openDevice to obtain a connection handle. You can only
 communicate with USB devices using connection handles.
 </p>
 
@@ -144,7 +144,7 @@ communicate with USB devices using connection handles.
   </tr>
   <tr>
     <td>device</td>
-    <td>Object received in $ref:chrome.usb.getDevices callback.</td>
+    <td>Object received in $ref:usb.getDevices callback.</td>
   </tr>
   <tr>
     <td>data (arraybuffer)</td>
@@ -169,32 +169,28 @@ chrome.usb.openDevice(device, onOpenCallback);
 </pre>
 
 <p class="note">
-Not every device can be opened successfully. In general, OS locked down many
-types of USB interfaces (e.g. keyboard and mice, mass storage devices, WebCams,
-and etc.) and they cannot be claimed by user application. On Linux (other than
-Chrome OS), once an interface of a device is locked down by the OS, the whole
-device is locked down (because all the interfaces shares the same device file),
-even if the other interfaces of the device can be used in theory. On Chrome OS,
-you can request access to unlocked interfaces using
-$ref:chrome.usb.requestAccess method. If permitted, the permission broker will
+Not every device can be opened successfully. In general, operating systems
+lock down many types of USB interfaces (e.g. keyboard and mice, mass storage
+devices, WebCams, etc.) and they cannot be claimed by user applications.
+On Linux (other than Chrome OS), once an interface of a device is locked down by
+the OS, the whole device is locked down (because all the interfaces shares the
+same device file), even if the other interfaces of the device can be used in
+theory. On Chrome OS, you can request access to unlocked interfaces using the
+$ref:usb.requestAccess method. If permitted, the permission broker will
 unlock the device file for you.
 </p>
 
 <p>
-To simplify the opening process, you can use the $ref:chrome.usb.findDevices
-method, which enumerates, requests access, and opens the devices in one call:
+To simplify the opening process, you can use the $ref:usb.findDevices
+method, which enumerates, requests access, and opens devices in one call:
 </p>
 
 <pre>
-chrome.usb.findDevices({
-  "vendorId": vendorId,
-  "productId": productId,
-  "interfaceId": interfaceId}, callback);
+chrome.usb.findDevices({"vendorId": vendorId, "productId": productId, "interfaceId": interfaceId}, callback);
 </pre>
-<p>which equivalents to:</p>
+<p>which is equivalent to:</p>
 <pre>
-chrome.usb.getDevices({"vendorId": vendorId, "productId": productId},
-    function (devices) {
+chrome.usb.getDevices({"vendorId": vendorId, "productId": productId}, function (devices) {
   if (!devices) {
     console.log("Error enumerating devices.");
     callback();
@@ -233,10 +229,10 @@ chrome.usb.getDevices({"vendorId": vendorId, "productId": productId},
   Transfers can occur in both directions: device-to-host (inbound), and
   host-to-device (outbound). Due to the nature of the USB protocol,
   both inbound and outbound messages must be initiated by the host (the
-  computer runs the Chrome App).
+  computer that runs the Chrome app).
   For inbound (device-to-host) messages, the host (initiated by your JavaScript
   code) sends a message flagged as "inbound" to the device.
-  The detail of the message depends on the device, but usually will have
+  The details of the message depend on the device, but usually will have
   some identification of what you are requesting from it.
   The device then responds with the requested data.
   The device's response is handled by Chrome and delivered asynchronously to the
@@ -259,8 +255,8 @@ chrome.usb.getDevices({"vendorId": vendorId, "productId": productId},
   </tr>
   <tr>
     <td>resultCode (integer)</td>
-    <td>0 is success; other values indicate failure. An error string can be
-      read from <code>chrome.extension.lastError</code> when a failure is
+    <td>0 is success; other values indicate failure. An error string can be<br/>
+      read from <code>chrome.extension.lastError</code> when a failure is<br/>
       indicated.
     </td>
   </tr>
@@ -274,8 +270,8 @@ chrome.usb.getDevices({"vendorId": vendorId, "productId": productId},
 
 <pre>
 var onTransferCallback = function(event) {
-   if (event &amp;&amp; event.resultCode === 0 &amp;&amp; event.data) {
-     console.log("got "+event.data.byteLength+" bytes");
+   if (event && event.resultCode === 0 && event.data) {
+     console.log("got " + event.data.byteLength + " bytes");
    }
 };
 
@@ -285,8 +281,8 @@ chrome.usb.bulkTransfer(connectionHandle, transferInfo, onTransferCallback);
 <h3 id="control_transfers">CONTROL transfers</h3>
 
 <p>Control transfers are generally used to send or receive configuration or
-  command parameters to a USB device. The controlTransfer method always sends to
-  /reads from endpoint 0, and no claimInterface is required.
+  command parameters to a USB device. The controlTransfer method always sends
+  to/reads from endpoint 0, and no claimInterface is required.
   The method is simple and receives three parameters:</p>
 
 <pre>
@@ -302,7 +298,7 @@ chrome.usb.controlTransfer(connectionHandle, transferInfo, transferCallback)
   </tr>
   <tr>
     <td>connectionHandle</td>
-    <td>Object received in $ref:chrome.usb.openDevice callback.
+    <td>Object received in $ref:usb.openDevice callback.
     </td>
   </tr>
   <tr>
@@ -338,10 +334,10 @@ chrome.usb.controlTransfer(connectionHandle, transferInfo, transferCallback)
   </tr>
   <tr>
     <td>direction (string)</td>
-    <td>"in" or "out". The "in" direction is used to notify the device that it
-      should send information to the host. All communication on a USB bus is
-      host-initiated, so use an 'in' transfer to allow a device to send
-      information back.
+    <td>"in" or "out". The "in" direction is used to notify the device that<br/>
+        it should send information to the host. All communication on a USB<br/>
+        bus is host-initiated, so use an "in" transfer to allow a device to<br/>
+        send information back.
     </td>
   </tr>
   <tr>
@@ -388,15 +384,13 @@ chrome.usb.controlTransfer(connectionHandle, transferInfo, optionalCallback);
 
 <h3 id="isochronous_transfers">ISOCHRONOUS transfers</h3>
 
-<p>Isochronous transfer is the most complex type of USB transfers. They are
+<p>Isochronous transfer is the most complex type of USB transfer. They are
   commonly used for streams of data, like video and sound. To initiate an
   isochronous transfer (either inbound or outbound), you must use
-  the $ref:chrome.usb.isochronousTransfer method:</p>
+  the $ref:usb.isochronousTransfer method:</p>
 
 <pre>
-chrome.usb.isochronousTransfer(connectionHandle,
-                               isochronousTransferInfo,
-                               transferCallback)
+chrome.usb.isochronousTransfer(connectionHandle, isochronousTransferInfo, transferCallback)
 </pre>
 
 <br/>
@@ -408,7 +402,7 @@ chrome.usb.isochronousTransfer(connectionHandle,
   </tr>
   <tr>
     <td>connectionHandle</td>
-    <td>Object received in $ref:chrome.usb.openDevice callback.
+    <td>Object received in $ref:usb.openDevice callback.
     </td>
   </tr>
   <tr>
@@ -435,11 +429,13 @@ chrome.usb.isochronousTransfer(connectionHandle,
   <tr>
     <td>transferInfo (object)</td>
     <td>An object with the following attributes:<br/>
-      <b>direction (string): </b>"in" or "out".<br> <b>endpoint (integer): </b>defined by
-      your device. Usually can be found by looking at an USB instrospection
-      tool, like <code>lsusb -v</code><br> <b>length (integer): </b>only
+      <b>direction (string): </b>"in" or "out".<br/> 
+      <b>endpoint (integer): </b>defined by your device. Usually can be found by
+      looking at an USB instrospection tool, like <code>lsusb -v</code><br/>
+      <b>length (integer): </b>only
       used when direction is "in". Notifies the device that this is the amount
       of data the host is expecting in response. <br/>
+      
       Should be AT LEAST <code>packets</code> &times; <code>packetLength</code>.
       <br/>
       <b>data (arraybuffer): </b>defined by your device's protocol;
@@ -482,10 +478,8 @@ chrome.usb.isochronousTransfer(connectionHandle, isoTransferInfo, optionalCallba
   <code>data</code> field in the onUsbEvent will be an ArrayBuffer of size
   <code>transferInfo.length</code>. It is your duty to walk through this
   ArrayBuffer and extract the different packets, each starting at a multiple of
-  <code>isoTransferInfo.packetLength</code> bytes.
-</p>
-
-<p class="note">
+  <code>isoTransferInfo.packetLength</code> bytes. <br/>
+  <br/>
   If you are expecting a stream of data from the device, remember that
   you will have to send one "inbound" transfer for each transfer you expect
   back. USB devices don't send transfers to the USB bus unless the host
@@ -494,9 +488,9 @@ chrome.usb.isochronousTransfer(connectionHandle, isoTransferInfo, optionalCallba
 
 <h3 id="bulk_transfers">BULK transfers</h3>
 
-<p>Bulk transfers are commonly used to transfer a large amount of non-time
-  sensitive data in a reliable way.
-  $ref:chrome.usb.bulkTransfer has three parameters:</p>
+<p>Bulk transfers are commonly used to transfer a large amount of
+  non-time-sensitive data in a reliable way.
+  $ref:usb.bulkTransfer has three parameters:</p>
 
 <pre>
 chrome.usb.bulkTransfer(connectionHandle, transferInfo, transferCallback);
@@ -511,7 +505,7 @@ chrome.usb.bulkTransfer(connectionHandle, transferInfo, transferCallback);
   </tr>
   <tr>
     <td>connectionHandle</td>
-    <td>Object received in $ref:chrome.usb.openDevice callback.
+    <td>Object received in $ref:usb.openDevice callback.
     </td>
   </tr>
   <tr>
@@ -569,15 +563,15 @@ var transferInfo = {
 
 <h3 id="interrupt_transfers">INTERRUPT transfers</h3>
 
-<p>Interrupt transfers are used to time sensitive, small amount of data.
+<p>Interrupt transfers are used to small amount of time sensitive data.
   Since all USB communication is initiated by the host, host code usually polls
   the device periodically, sending interrupt IN transfers that will make the
   device send data back if there is anything in the interrupt queue (maintained
   by the device).
-  $ref:chrome.usb.interruptTransfer has three parameters:</p>
+  $ref:usb.interruptTransfer has three parameters:</p>
 
 <pre>
-chrome.usb.interruptTransfer(connectionHandle, transferInfo, transferCallback)
+chrome.usb.interruptTransfer(connectionHandle, transferInfo, transferCallback);
 </pre>
 
 <br>
@@ -589,7 +583,7 @@ chrome.usb.interruptTransfer(connectionHandle, transferInfo, transferCallback)
   </tr>
   <tr>
     <td>connectionHandle</td>
-    <td>Object received in $ref:chrome.usb.openDevice callback.
+    <td>Object received in $ref:usb.openDevice callback.
     </td>
   </tr>
   <tr>
@@ -650,10 +644,15 @@ chrome.usb.interruptTransfer(connectionHandle, transferInfo, optionalCallback);
 
 <h3 id="caveats">Caveats</h3>
 
+<p>Not all devices can be accessed through the USB API. In general, devices
+  are not accessible either because the Operating System's kernel or a native
+  driver holds them off from user space code. Some examples are devices with
+  HID profiles on OSX systems, and USB pen drives.</p>
+  
 <p>
   On most Linux systems, USB devices are mapped with read-only permissions by
-  default. To open the device through this API, your user will need to have
-  write access to them too.
+  default. To open a device through this API, your user will need to have
+  write access to it too.
   A simple solution is to set a udev rule. Create a file
   <code>/etc/udev/rules.d/50-yourdevicename.rules</code>
   with the following content:
@@ -676,17 +675,12 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="[yourdevicevendor]", MODE="0664", GROUP="plug
   </li>
 </ul>
 
-<p>Your app cannot do this automatically since this needs root access. We
-recommend the app developers to provide instructions to the end-users and link
-to <a href="#caveats">this page</a> for reasons.</p>
+<p>Your app cannot do this automatically since this this procedure requires root
+access. We recommend that you provide instructions to end-users and link to the
+<a href="#caveats">Caveats</a> section on this page for an explanation.</p>
 
-<p>On Chrome OS, simply call $ref:chrome.usb.requestAccess. The permission
+<p>On Chrome OS, simply call $ref:usb.requestAccess. The permission
   broker does this for you.</p>
-
-<p>Not all devices can be accessed through this API. In general, devices
-  are not accessible either because the Operating System's kernel or a native
-  driver holds them off from user space code. Some examples are devices with
-  HID profiles on OSX systems and USB pen drives.</p>
 
 <h2 id="serial">Accessing serial devices</h2>
 
