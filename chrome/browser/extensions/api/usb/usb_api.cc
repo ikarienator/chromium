@@ -325,6 +325,10 @@ void RequestUsbDevicesAccess(
     ScopedDeviceVector devices,
     int interface_id,
     const base::Callback<void(ScopedDeviceVector result)>& callback) {
+  if (devices->begin() == devices->end()) {
+    callback.Run(devices.Pass());
+    return;
+  }
   (*devices->begin())->RequestUsbAcess(
       interface_id,
       base::Bind(RequestUsbDevicesAccessHelper, base::Passed(devices.Pass()),
