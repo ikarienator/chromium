@@ -307,25 +307,20 @@ void RequestUsbDevicesAccessHelper(
     int interface_id,
     const base::Callback<void(ScopedDeviceVector result)>& callback,
     bool success) {
-  if (success) {
-    ++i;
-  } else {
-    i = devices->erase(i);
-  }
   if (i == devices->end()) {
     callback.Run(devices.Pass());
     return;
   }
-  (*i)->RequestUsbAcess(interface_id, base::Bind(RequestUsbDevicesAccessHelper,
-                                                 base::Passed(devices.Pass()),
-                                                 i, interface_id, callback));
+  (*i)->RequestUsbAccess(interface_id, base::Bind(RequestUsbDevicesAccessHelper,
+                                                  base::Passed(devices.Pass()),
+                                                  i, interface_id, callback));
 }
 
 void RequestUsbDevicesAccess(
     ScopedDeviceVector devices,
     int interface_id,
     const base::Callback<void(ScopedDeviceVector result)>& callback) {
-  (*devices->begin())->RequestUsbAcess(
+  (*devices->begin())->RequestUsbAccess(
       interface_id,
       base::Bind(RequestUsbDevicesAccessHelper, base::Passed(devices.Pass()),
                  devices->begin(), interface_id, callback));
@@ -673,9 +668,9 @@ void UsbRequestAccessFunction::AsyncWorkStart() {
       GetDeviceOrOrCompleteWithError(parameters_->device);
   if (!device) return;
 
-  device->RequestUsbAcess(parameters_->interface_id,
-                          base::Bind(&UsbRequestAccessFunction::OnCompleted,
-                                     this));
+  device->RequestUsbAccess(parameters_->interface_id,
+                           base::Bind(&UsbRequestAccessFunction::OnCompleted,
+                                      this));
 #else
   SetResult(new base::FundamentalValue(false));
   CompleteWithError(kErrorNotSupported);

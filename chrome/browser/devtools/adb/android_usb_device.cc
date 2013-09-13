@@ -252,7 +252,7 @@ static void EnumerateOnFileThread(crypto::RSAPrivateKey* rsa_key,
 
       // Request permission on Chrome OS.
 #if defined(OS_CHROMEOS)
-      (*it)->RequestUsbAcess(j, base::Bind(&OpenAndroidDevicesOnFileThread,
+      (*it)->RequestUsbAccess(j, base::Bind(&OpenAndroidDevicesOnFileThread,
                                            rsa_key, barrier, *it, j));
 #else
       OpenAndroidDevicesOnFileThread(rsa_key, barrier, *it, j, true);

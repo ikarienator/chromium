@@ -20,6 +20,24 @@
 
 using content::BrowserThread;
 
+#if defined(OS_CHROMEOS)
+
+namespace {
+
+// This method is called when permission broker replied our request.
+// We will simply relay it to FILE thread.
+// |callback| comes first because it will be base::Bind'ed.
+void OnRequestUsbAccessReplied(
+    const base::Callback<void(bool success)>& callback,
+    bool success) {
+  BrowserThread::PostTask(BrowserThread::FILE, FROM_HERE,
+                          base::Bind(callback, success));
+}
+
+}  // namespace
+
+#endif  // defined(OS_CHROMEOS)
+
 UsbDevice::UsbDevice(
     scoped_refptr<UsbContext> context,
     PlatformUsbDevice platform_device,
@@ -55,43 +73,37 @@ UsbDevice::~UsbDevice() {
 }
 
 #if defined(OS_CHROMEOS)
-void UsbDevice::RequestUsbAcess(
+void UsbDevice::RequestUsbAccess(
     int interface_id,
     const base::Callback<void(bool success)>& callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
 
   // ChromeOS builds on non-ChromeOS machines (dev) should not attempt to
   // use permission broker.
-  if (base::chromeos::IsRunningOnChromeOS()) {
-    chromeos::PermissionBrokerClient* client =
-        chromeos::DBusThreadManager::Get()->GetPermissionBrokerClient();
-    DCHECK(client) << "Could not get permission broker client.";
-    if (!client) {
-      callback.Run(false);
-      return;
-    }
-
-    BrowserThread::PostTask(
-        BrowserThread::UI, FROM_HERE,
-        base::Bind(&chromeos::PermissionBrokerClient::RequestUsbAccess,
-                   base::Unretained(client),
-                   this->vendor_id_,
-                   this->product_id_,
-                   interface_id,
-                   base::Bind(&UsbDevice::OnRequestUsbAccessReplied,
-                              base::Unretained(this),
-                              callback)));
+  if (!base::chromeos::IsRunningOnChromeOS()) {
+    callback.Run(false);
+    return;
   }
-}
 
-void UsbDevice::OnRequestUsbAccessReplied(
-    const base::Callback<void(bool success)>& callback,
-    bool success) {
-  BrowserThread::PostTask(BrowserThread::FILE, FROM_HERE,
-                          base::Bind(callback, success));
-}
+  chromeos::PermissionBrokerClient* client =
+      chromeos::DBusThreadManager::Get()->GetPermissionBrokerClient();
+  DCHECK(client) << "Could not get permission broker client.";
+  if (!client) {
+    callback.Run(false);
+    return;
+  }
 
-#endif
+  BrowserThread::PostTask(
+      BrowserThread::UI, FROM_HERE,
+      base::Bind(&chromeos::PermissionBrokerClient::RequestUsbAccess,
+                 base::Unretained(client),
+                 this->vendor_id_,
+                 this->product_id_,
+                 interface_id,
+                 base::Bind(&OnRequestUsbAccessReplied,
+                            callback)));
+}
+#endif  // defined(OS_CHROMEOS)
 
 scoped_refptr<UsbDeviceHandle> UsbDevice::Open() {
   DCHECK(thread_checker_.CalledOnValidThread());
