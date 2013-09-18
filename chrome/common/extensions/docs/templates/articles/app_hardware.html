@@ -170,8 +170,8 @@ chrome.usb.openDevice(device, onOpenCallback);
 
 <p class="note">
 Not every device can be opened successfully. In general, operating systems
-lock down many types of USB interfaces (e.g. keyboard and mice, mass storage
-devices, WebCams, etc.) and they cannot be claimed by user applications.
+lock down many types of USB interfaces (e.g. keyboards and mice, mass storage
+devices, webcams, etc.) and they cannot be claimed by user applications.
 On Linux (other than Chrome OS), once an interface of a device is locked down by
 the OS, the whole device is locked down (because all the interfaces shares the
 same device file), even if the other interfaces of the device can be used in
@@ -384,7 +384,7 @@ chrome.usb.controlTransfer(connectionHandle, transferInfo, optionalCallback);
 
 <h3 id="isochronous_transfers">ISOCHRONOUS transfers</h3>
 
-<p>Isochronous transfer is the most complex type of USB transfer. They are
+<p>Isochronous transfers are the most complex type of USB transfer. They are
   commonly used for streams of data, like video and sound. To initiate an
   isochronous transfer (either inbound or outbound), you must use
   the $ref:usb.isochronousTransfer method:</p>
@@ -645,7 +645,7 @@ chrome.usb.interruptTransfer(connectionHandle, transferInfo, optionalCallback);
 <h3 id="caveats">Caveats</h3>
 
 <p>Not all devices can be accessed through the USB API. In general, devices
-  are not accessible either because the Operating System's kernel or a native
+  are not accessible because either the Operating System's kernel or a native
   driver holds them off from user space code. Some examples are devices with
   HID profiles on OSX systems, and USB pen drives.</p>
   
