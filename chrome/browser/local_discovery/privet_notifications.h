@@ -21,10 +21,11 @@ class BrowserContext;
 
 namespace local_discovery {
 
+class ServiceDiscoverySharedClient;
 class PrivetDeviceLister;
 class PrivetHTTPAsynchronousFactory;
 class PrivetHTTPResolution;
-class ServiceDiscoverySharedClient;
+class PrivetTrafficDetector;
 struct DeviceDescription;
 
 // Contains logic related to notifications not tied actually displaying them.
@@ -93,8 +94,7 @@ class PrivetNotificationService
       public PrivetNotificationsListener::Delegate,
       public base::SupportsWeakPtr<PrivetNotificationService> {
  public:
-  PrivetNotificationService(content::BrowserContext* profile,
-                            NotificationUIManager* notification_manager);
+  explicit PrivetNotificationService(content::BrowserContext* profile);
   virtual ~PrivetNotificationService();
 
   // PrivetDeviceLister::Delegate implementation:
@@ -113,11 +113,13 @@ class PrivetNotificationService
 
  private:
   void Start();
+  void StartLister();
 
   content::BrowserContext* profile_;
-  NotificationUIManager* notification_manager_;
   scoped_ptr<PrivetDeviceLister> device_lister_;
   scoped_refptr<ServiceDiscoverySharedClient> service_discovery_client_;
+  scoped_refptr<PrivetTrafficDetector> traffic_detector_v4_;
+  scoped_refptr<PrivetTrafficDetector> traffic_detector_v6_;
   scoped_ptr<PrivetNotificationsListener> privet_notifications_listener_;
 };
 

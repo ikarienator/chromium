@@ -746,6 +746,12 @@ other types of suffix sets.
   </summary>
 </histogram>
 
+<histogram name="Aura.CreatedGpuBrowserCompositor" enum="CompositorType">
+  <summary>
+    Whether the browser compositor uses GPU or the software renderer.
+  </summary>
+</histogram>
+
 <histogram name="Autocheckout.Bubble" enum="AutocheckoutBubble">
   <obsolete>
     Deprecated as of 8/2013.
@@ -10554,6 +10560,16 @@ other types of suffix sets.
   </summary>
 </histogram>
 
+<histogram name="PasswordGeneration.UploadStarted" enum="Boolean">
+  <summary>
+    The number of times that we try to upload a form that we believe should
+    trigger password generation. False means that something about the form would
+    not allow us to try upload (not an Autofillable field, uploading disabled,
+    Autofill servers in backoff, etc.). True does not mean that the upload
+    actually completed successfully, just that it was started.
+  </summary>
+</histogram>
+
 <histogram name="PasswordManager.BlacklistedSites">
   <summary>
     The total number of sites that the user has blacklisted. Recorded by
@@ -19142,6 +19158,11 @@ other types of suffix sets.
   <int value="2" label="Will use composited scrolling"/>
 </enum>
 
+<enum name="CompositorType" type="int">
+  <int value="0" label="Software compositor"/>
+  <int value="1" label="GPU compositor"/>
+</enum>
+
 <enum name="ConnectionType" type="int">
   <summary>
     Connection type as defined in net/base/connection_type_histograms.h
@@ -20248,7 +20269,7 @@ other types of suffix sets.
   <int value="45" label="EXPERIMENTAL_DISCOVERY_REMOVESUGGESTION"/>
   <int value="46" label="VIRTUALKEYBOARDPRIVATE_SENDKEYEVENT"/>
   <int value="47" label="BOOKMARKMANAGERPRIVATE_GETSUBTREE"/>
-  <int value="48" label="EXPERIMENTAL_RLZ_RECORDPRODUCTEVENT"/>
+  <int value="48" label="DELETED_EXPERIMENTAL_RLZ_RECORDPRODUCTEVENT"/>
   <int value="49" label="BOOKMARKS_GETRECENT"/>
   <int value="50" label="APP_CURRENTWINDOWINTERNAL_SETBOUNDS"/>
   <int value="51" label="CLOUDPRINTPRIVATE_SETUPCONNECTOR"/>
@@ -20320,7 +20341,7 @@ other types of suffix sets.
   <int value="117" label="EXTENSION_SETUPDATEURLDATA"/>
   <int value="118" label="SERIAL_WRITE"/>
   <int value="119" label="IDLE_QUERYSTATE"/>
-  <int value="120" label="EXPERIMENTAL_RLZ_GETACCESSPOINTRLZ"/>
+  <int value="120" label="DELETED_EXPERIMENTAL_RLZ_GETACCESSPOINTRLZ"/>
   <int value="121" label="WEBSTOREPRIVATE_SETSTORELOGIN"/>
   <int value="122" label="PAGEACTIONS_ENABLEFORTAB"/>
   <int value="123" label="COOKIES_SET"/>
@@ -20368,7 +20389,7 @@ other types of suffix sets.
   <int value="164" label="MANAGEMENT_GET"/>
   <int value="165" label="PERMISSIONS_GETALL"/>
   <int value="166" label="DOWNLOADS_SHOW"/>
-  <int value="167" label="EXPERIMENTAL_RLZ_CLEARPRODUCTSTATE"/>
+  <int value="167" label="DELETED_EXPERIMENTAL_RLZ_CLEARPRODUCTSTATE"/>
   <int value="168" label="TABS_REMOVE"/>
   <int value="169" label="MANAGEMENT_GETPERMISSIONWARNINGSBYID"/>
   <int value="170" label="WINDOWS_GET"/>
@@ -20468,7 +20489,7 @@ other types of suffix sets.
   <int value="264" label="DEVELOPERPRIVATE_GETITEMSINFO"/>
   <int value="265" label="BLUETOOTH_STOPDISCOVERY"/>
   <int value="266" label="COOKIES_REMOVE"/>
-  <int value="267" label="EXPERIMENTAL_RLZ_SENDFINANCIALPING"/>
+  <int value="267" label="DELETED_EXPERIMENTAL_RLZ_SENDFINANCIALPING"/>
   <int value="268" label="TABCAPTURE_GETCAPTUREDTABS"/>
   <int value="269" label="WINDOWS_REMOVE"/>
   <int value="270" label="WALLPAPERPRIVATE_GETOFFLINEWALLPAPERLIST"/>
@@ -24487,6 +24508,18 @@ other types of suffix sets.
   <int value="69" label="pps invalid file format"/>
   <int value="70" label="ppsx invalid file format"/>
   <int value="71" label="ppsm invalid file format"/>
+  <int value="72" label="doc editing dom sync error"/>
+  <int value="73" label="docx editing dom sync error"/>
+  <int value="74" label="docm editing dom sync error"/>
+  <int value="75" label="xls editing dom sync error"/>
+  <int value="76" label="xlsx editing dom sync error"/>
+  <int value="77" label="xlsm editing dom sync error"/>
+  <int value="78" label="ppt editing dom sync error"/>
+  <int value="79" label="pptx editing dom sync error"/>
+  <int value="80" label="pptm editing dom sync error"/>
+  <int value="81" label="pps editing dom sync error"/>
+  <int value="82" label="ppsx editing dom sync error"/>
+  <int value="83" label="ppsm editing dom sync error"/>
 </enum>
 
 <enum name="QuickofficeFileFormat" type="int">

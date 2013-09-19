@@ -5471,6 +5471,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_DISABLE_DEVICE_DISCOVERY_DESCRIPTION" desc="Description for 'disable device discovery' flag.">
         Disable device discovery on local network.
       </message>
+      <message name="IDS_FLAGS_DISABLE_DEVICE_DISCOVERY_NOTIFICATIONS_NAME" desc="Title of the disable 'disable device discovery notificatios' flag.">
+        Disable Device Discovery Notifications
+      </message>
+      <message name="IDS_FLAGS_DISABLE_DEVICE_DISCOVERY_NOTIFICATIONS_DESCRIPTION" desc="Description for 'disable device discovery notifications' flag.">
+        Disable device discovery notifications on local network.
+      </message>
       <message name="IDS_FLAGS_TOUCH_OPTIMIZED_UI_NAME" desc="Title of the touch-optimized UI flag." >
         Touch Optimized UI
       </message>
@@ -5756,6 +5762,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
       <message name="IDS_FLAGS_ENABLE_SMOOTH_SCROLLING_DESCRIPTION" desc="Description for the flag to turn on smooth scrolling">
         Enable the experimental smooth scrolling implementation.
+      </message>
+      <message name="IDS_FLAGS_ENABLE_OVERLAY_SCROLLBARS_NAME" desc="Title for the flag to turn on overlay scrollbars">
+        Overlay Scrollbars
+      </message>
+      <message name="IDS_FLAGS_ENABLE_OVERLAY_SCROLLBARS_DESCRIPTION" desc="Description for the flag to turn on overlay scrollbars">
+        Enable the experimental overlay scrollbars implementation. You must also enable threaded compositing to have the scrollbars animate.
       </message>
       <message name="IDS_FLAGS_ENABLE_AUTOLOGIN_NAME" desc="Title for the flag to auto-login the user">
         Enable auto-login
@@ -6588,12 +6600,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
         Enables directory support for sync filesystem.
       </message>
       <if expr="is_macosx">
-        <message name="IDS_FLAGS_ENABLE_APP_LIST_SHIM_NAME" desc="Name of the flag to enable the app launcher app bundle.">
-          Enable App Launcher OSX app bundle.
-        </message>
-        <message name="IDS_FLAGS_ENABLE_APP_LIST_SHIM_DESCRIPTION" desc="Description of the flag to enable the app launcher app bundle.">
-          Enable to ensure an OSX app bundle for the App Launcher exists under the Applications folder.
-        </message>
         <message name="IDS_FLAGS_ENABLE_APP_SHIMS_NAME" desc="Title for the flag to enable shortcuts for packaged apps to be added to Applications and to appear in the dock.">
           Enable packaged app shortcuts.
         </message>
@@ -6618,12 +6624,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
       <message name="IDS_FLAGS_DISABLE_APP_LIST_DESCRIPTION" desc="Description of the flag to disable the app list on startup.">
         Disable the app launcher on startup. While this flag is set the launcher will be disabled every time Chrome starts. This is used for testing the app launcher install flow.
-      </message>
-      <message name="IDS_FLAGS_ENABLE_DEVICE_MOTION_NAME" desc="Name of the flag to enable device motion DOM events.">
-        Enable device motion.
-      </message>
-      <message name="IDS_FLAGS_ENABLE_DEVICE_MOTION_DESCRIPTION" desc="Description for the flag to enable device motion.">
-        Enables device motion DOM events in JavaScript.
       </message>
       <message name="IDS_FLAGS_DISABLE_USER_IMAGE_SYNC_NAME" desc="Name of the flag to disable sync of user account image.">
         Disable avatar sync.
@@ -9989,8 +9989,8 @@ Would you like to start <ph name="CONTROL_PANEL_APPLET_NAME">$1<ex>Add/Remove Pr
       </message>
 
       <!-- Autofill dialog: notification area -->
-      <message name="IDS_AUTOFILL_DIALOG_DETAILS_FROM_WALLET" desc="Text explaining where the dialog got its payment info from (on first run of this dialog while using Google Wallet).">
-        The following details are saved in your Google Wallet.
+      <message name="IDS_AUTOFILL_DIALOG_USE_WALLET" desc="Text that shows on top of the autofill dialog when using data Google Wallet already knows about the user.">
+        Protect my payment with Google Wallet.
       </message>
       <message name="IDS_AUTOFILL_DIALOG_SAVE_DETAILS_IN_WALLET" desc="Text that shows on the top of the autofill dialog promoting saving info in Google Wallet.">
         Save and protect my details with Google Wallet.

@@ -178,6 +178,7 @@
         'test_support_common',
         # NOTE: don't add test_support_ui, no more UITests. See
         # http://crbug.com/137365
+        '../google_apis/google_apis.gyp:google_apis_test_support',
         '../third_party/hunspell/hunspell.gyp:hunspell',
         '../net/net.gyp:net',
         '../net/net.gyp:net_resources',
@@ -910,6 +911,7 @@
         '../components/components.gyp:autofill_content_risk_proto',
         '../components/components.gyp:autofill_content_test_support',
         '../device/bluetooth/bluetooth.gyp:device_bluetooth_mocks',
+        '../google_apis/google_apis.gyp:google_apis_test_support',
         '../net/net.gyp:net',
         '../net/net.gyp:net_test_support',
         '../skia/skia.gyp:skia',
@@ -922,6 +924,7 @@
         '../third_party/icu/icu.gyp:icuuc',
         '../third_party/leveldatabase/leveldatabase.gyp:leveldatabase',
         '../third_party/safe_browsing/safe_browsing.gyp:safe_browsing',
+        '../third_party/widevine/cdm/widevine_cdm.gyp:widevine_cdm_version_h',
         '../ui/web_dialogs/web_dialogs.gyp:web_dialogs_test_support',
         '../ui/ui.gyp:webui_test_support',
         '../v8/tools/gyp/v8.gyp:v8',
@@ -1312,7 +1315,6 @@
         'browser/renderer_host/render_process_host_chrome_browsertest.cc',
         'browser/renderer_host/web_cache_manager_browsertest.cc',
         'browser/repost_form_warning_browsertest.cc',
-        'browser/rlz/rlz_extension_apitest.cc',
         'browser/safe_browsing/local_safebrowsing_test_server.cc',
         'browser/safe_browsing/safe_browsing_blocking_page_test.cc',
         'browser/safe_browsing/safe_browsing_service_browsertest.cc',
@@ -1738,11 +1740,6 @@
             'browser/ui/gtk/view_id_util_browsertest.cc',
           ],
         }],
-        ['enable_rlz==0', {
-          'sources!': [
-            'browser/rlz/rlz_extension_apitest.cc',
-          ],
-        }],
         ['enable_webrtc==0', {
           'sources!': [
             'browser/media/chrome_webrtc_browsertest.cc',
@@ -1898,7 +1895,7 @@
         }],
         ['enable_plugins==1', {
           'dependencies': [
-            # Runtime dependency.
+            # Runtime dependencies.
             '../third_party/widevine/cdm/widevine_cdm.gyp:widevinecdmadapter',
             '../media/media.gyp:clearkeycdmadapter',
           ],

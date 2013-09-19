@@ -8,7 +8,7 @@ vars = {
   "sourceforge_url": "http://svn.code.sf.net/p/%(repo)s/code",
   "webkit_trunk": "http://src.chromium.org/blink/trunk",
   "nacl_trunk": "http://src.chromium.org/native_client/trunk",
-  "webkit_revision": "157960",
+  "webkit_revision": "158008",
   "chromium_git": "https://chromium.googlesource.com",
   "chromiumos_git": "https://chromium.googlesource.com/chromiumos",
   "skia_git": "https://skia.googlesource.com",
@@ -29,12 +29,12 @@ vars = {
   "ffmpeg_hash": "feb5bc7d3d1fc66d9c52dc316479231b02cbdac1",
 
   "sfntly_revision": "134",
-  "skia_revision": "11334",
-  "skia_hash": "caafd77d5a6406cf3820ed28755af7818cdc3f20",
+  "skia_revision": "11364",
+  "skia_hash": "8249a2fc66738fd4aeb2500aae50c20744f1a744",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and V8 without interference from each other.
-  "v8_revision": "16753",
+  "v8_revision": "16822",
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling WebRTC
   # and V8 without interference from each other.
@@ -69,7 +69,7 @@ deps = {
     "/external/angle.git@fc75e21762459c9306fd0c0a060010254d5ad248",
 
   "src/third_party/trace-viewer":
-    (Var("googlecode_url") % "trace-viewer") + "/trunk@1003",
+    (Var("googlecode_url") % "trace-viewer") + "/trunk@1006",
 
   "src/third_party/WebKit":
     Var("webkit_trunk") + "@" + Var("webkit_revision"),
@@ -456,7 +456,7 @@ deps_os = {
   "android": {
     "src/third_party/android_tools":
       Var("chromium_git") + "/android_tools.git" +
-      "@d8a5bfea861dfbacd9a74275c00561f7bb27d6e3",
+      "@53862978424412e190e9bc40c7637a71fdd7d298",
 
     "src/third_party/aosp":
       "/trunk/deps/third_party/aosp@148330",

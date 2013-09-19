@@ -323,6 +323,10 @@ const char kDisableDefaultApps[]            = "disable-default-apps";
 // Disables device discovery.
 const char kDisableDeviceDiscovery[]        = "disable-device-discovery";
 
+// Disables device discovery notifications.
+const char kDisableDeviceDiscoveryNotifications[] =
+    "disable-device-discovery-notifications";
+
 // Disables retrieval of PAC URLs from DHCP as per the WPAD standard.
 const char kDisableDhcpWpad[]               = "disable-dhcp-wpad";
 
@@ -1556,11 +1560,6 @@ const char kMigrateDataDirForSxS[]          = "migrate-data-dir-for-sxs";
 // older, SnowLeopard-style fullscreen.
 const char kDisableSystemFullscreenForTesting[] =
     "disable-system-fullscreen-for-testing";
-
-// Enables the app list OSX .app shim, for showing the app list. If the flag is
-// not present, Chrome will check if the shim exists at startup, and delete it
-// if it does.
-const char kEnableAppListShim[]             = "enable-app-list-shim";
 
 // Enable to allow creation and launch of app shims for platform apps.
 const char kEnableAppShims[]                = "enable-app-shims";

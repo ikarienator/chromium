@@ -405,11 +405,6 @@ class WebViewInteractiveTest
   }
 
  protected:
-  virtual void SetUpCommandLine(CommandLine* command_line) OVERRIDE {
-    command_line->AppendSwitch(switches::kEnableBrowserPluginDragDrop);
-    extensions::PlatformAppBrowserTest::SetUpCommandLine(command_line);
-  }
-
   content::WebContents* guest_web_contents_;
   content::WebContents* embedder_web_contents_;
   gfx::Point corner_;
@@ -500,15 +495,14 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, PointerLock) {
 
 #endif  // (defined(OS_WIN) || defined(OS_LINUX))
 
-// Fails on Windows. crbug.com/236040
-// Also flaky on ChromiumOS. crbug.com/281815
-// Appears to be flaky on Mac and Linux too.
-#define MAYBE_Focus DISABLED_Focus
 // Tests that setting focus on the <webview> sets focus on the guest.
-IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, MAYBE_Focus) {
-  ASSERT_TRUE(StartEmbeddedTestServer());  // For serving guest pages.
-  ASSERT_TRUE(RunPlatformAppTest("platform_apps/web_view/focus"))
-      << message_;
+IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, Focus_FocusEvent) {
+  TestHelper("testFocusEvent", "web_view/focus");
+}
+
+// Tests that setting focus on the <webview> sets focus on the guest.
+IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, Focus_BlurEvent) {
+  TestHelper("testBlurEvent", "web_view/focus");
 }
 
 // Tests that guests receive edit commands and respond appropriately.
@@ -654,7 +648,6 @@ IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, DISABLED_PopupPositioningMoved) {
 // but the tests don't work on anything except chromeos for now. This is because
 // of simulating mouse drag code's dependency on platforms.
 #if defined(OS_CHROMEOS)
-// http://crbug.com/281001
 IN_PROC_BROWSER_TEST_F(WebViewInteractiveTest, DragDropWithinWebView) {
   SetupTest(
       "web_view/dnd_within_webview",

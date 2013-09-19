@@ -14,8 +14,8 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/aura/root_window.h"
 #include "ui/aura/window.h"
-#include "ui/base/events/event.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
+#include "ui/events/event.h"
 #include "ui/views/widget/widget.h"
 
 namespace ash {
@@ -37,7 +37,7 @@ struct WindowSelectorItemComparator
       : target(target_window) {
   }
 
-  bool operator()(const WindowSelectorItem* window) const {
+  bool operator()(WindowSelectorItem* window) const {
     return window->TargetedWindow(target) != NULL;
   }
 

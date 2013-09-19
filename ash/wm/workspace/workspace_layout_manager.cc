@@ -21,8 +21,8 @@
 #include "ui/aura/root_window.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
-#include "ui/base/events/event.h"
 #include "ui/base/ui_base_types.h"
+#include "ui/events/event.h"
 #include "ui/views/corewm/window_util.h"
 
 using aura::Window;
@@ -310,11 +310,13 @@ void WorkspaceLayoutManager::UpdateBoundsFromShowState(
           bounds_in_parent.SetRect(0, 0, 0, 0);
       }
       if (!bounds_in_parent.IsEmpty()) {
-        CrossFadeToBounds(
-            window,
-            BaseLayoutManager::BoundsWithScreenEdgeVisible(
-                window->parent()->parent(),
-                bounds_in_parent));
+        gfx::Rect new_bounds = BaseLayoutManager::BoundsWithScreenEdgeVisible(
+            window->parent()->parent(),
+            bounds_in_parent);
+        if (last_show_state == ui::SHOW_STATE_MINIMIZED)
+          SetChildBoundsDirect(window, new_bounds);
+        else
+          CrossFadeToBounds(window, new_bounds);
       }
       ClearRestoreBounds(window);
       break;

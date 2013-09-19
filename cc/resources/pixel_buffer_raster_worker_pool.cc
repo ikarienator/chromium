@@ -41,13 +41,10 @@ class PixelBufferWorkerPoolTaskImpl : public internal::WorkerPoolTask {
       needs_upload_ = true;
       return;
     }
-    SkBitmap bitmap;
-    bitmap.setConfig(SkBitmap::kARGB_8888_Config,
-                     task_->resource()->size().width(),
-                     task_->resource()->size().height());
-    bitmap.setPixels(buffer_);
-    SkBitmapDevice device(bitmap);
-    needs_upload_ = task_->RunOnWorkerThread(&device, thread_index);
+    needs_upload_ = task_->RunOnWorkerThread(thread_index,
+                                             buffer_,
+                                             task_->resource()->size(),
+                                             0);
   }
   virtual void CompleteOnOriginThread() OVERRIDE {
     // |needs_upload_| must be be false if task didn't run.
@@ -157,6 +154,7 @@ void PixelBufferRasterWorkerPool::ScheduleTasks(RasterTask::Queue* queue) {
     internal::RasterWorkerPoolTask* task = it->get();
     DCHECK(new_pixel_buffer_tasks.find(task) == new_pixel_buffer_tasks.end());
     DCHECK(!task->HasCompleted());
+    DCHECK(!task->WasCanceled());
 
     new_pixel_buffer_tasks[task] = pixel_buffer_tasks_[task];
     pixel_buffer_tasks_.erase(task);
@@ -219,8 +217,8 @@ void PixelBufferRasterWorkerPool::ScheduleTasks(RasterTask::Queue* queue) {
       "state", TracedValue::FromValue(StateAsValue().release()));
 }
 
-GLenum PixelBufferRasterWorkerPool::GetResourceFormat() const {
-  return resource_provider()->best_texture_format();
+ResourceFormat PixelBufferRasterWorkerPool::GetResourceFormat() const {
+  return resource_provider()->memory_efficient_texture_format();
 }
 
 void PixelBufferRasterWorkerPool::CheckForCompletedTasks() {

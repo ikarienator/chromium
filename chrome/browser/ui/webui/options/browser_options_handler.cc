@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "apps/shell_window.h"
+#include "apps/shell_window_registry.h"
 #include "base/basictypes.h"
 #include "base/bind.h"
 #include "base/bind_helpers.h"
@@ -1085,12 +1087,20 @@ void BrowserOptionsHandler::SendProfilesInfo() {
 }
 
 chrome::HostDesktopType BrowserOptionsHandler::GetDesktopType() {
-  Browser* browser =
-      chrome::FindBrowserWithWebContents(web_ui()->GetWebContents());
-  chrome::HostDesktopType desktop_type = chrome::HOST_DESKTOP_TYPE_NATIVE;
+  content::WebContents* web_contents = web_ui()->GetWebContents();
+  Browser* browser = chrome::FindBrowserWithWebContents(web_contents);
   if (browser)
-    desktop_type = browser->host_desktop_type();
-  return desktop_type;
+    return browser->host_desktop_type();
+
+  apps::ShellWindow* shell_window =
+      apps::ShellWindowRegistry::Get(Profile::FromWebUI(web_ui()))->
+          GetShellWindowForRenderViewHost(web_contents->GetRenderViewHost());
+  if (shell_window) {
+    return chrome::GetHostDesktopTypeForNativeWindow(
+        shell_window->GetNativeWindow());
+  }
+
+  return chrome::GetActiveDesktop();
 }
 
 void BrowserOptionsHandler::CreateProfile(const ListValue* args) {
@@ -1129,24 +1139,26 @@ void BrowserOptionsHandler::CreateProfile(const ListValue* args) {
     if (!IsValidExistingManagedUserId(managed_user_id))
       return;
 
-    // If sync is not yet fully initialized, the creation may take extra time,
-    // so show a message.
-    ProfileSyncService* sync_service =
-          ProfileSyncServiceFactory::GetInstance()->GetForProfile(
-              current_profile);
-    ProfileSyncService::SyncStatusSummary status =
-          sync_service->QuerySyncStatusSummary();
-    if (status == ProfileSyncService::DATATYPES_NOT_INITIALIZED) {
-      ShowProfileCreationWarning(l10n_util::GetStringUTF16(
-          IDS_PROFILES_CREATE_MANAGED_JUST_SIGNED_IN));
-    }
-
     if (managed_user_id.empty()) {
       managed_user_id =
           ManagedUserRegistrationUtility::GenerateNewManagedUserId();
+
+      // If sync is not yet fully initialized, the creation may take extra time,
+      // so show a message. Import doesn't wait for an acknowledgement, so it
+      // won't have the same potential delay.
+      ProfileSyncService* sync_service =
+          ProfileSyncServiceFactory::GetInstance()->GetForProfile(
+              current_profile);
+      ProfileSyncService::SyncStatusSummary status =
+          sync_service->QuerySyncStatusSummary();
+      if (status == ProfileSyncService::DATATYPES_NOT_INITIALIZED) {
+        ShowProfileCreationWarning(l10n_util::GetStringUTF16(
+            IDS_PROFILES_CREATE_MANAGED_JUST_SIGNED_IN));
+      }
     } else {
       importing_existing_managed_user_ = true;
     }
+
     callbacks.push_back(
         base::Bind(&BrowserOptionsHandler::RegisterManagedUser,
                    weak_ptr_factory_.GetWeakPtr(),
@@ -1273,9 +1285,9 @@ void BrowserOptionsHandler::ShowProfileCreationError(Profile* profile,
 
 void BrowserOptionsHandler::ShowProfileCreationWarning(
     const string16& warning) {
-  web_ui()->CallJavascriptFunction(
-      GetJavascriptMethodName(PROFILE_CREATION_WARNING),
-      base::StringValue(warning));
+  DCHECK(!importing_existing_managed_user_);
+  web_ui()->CallJavascriptFunction("BrowserOptions.showCreateProfileWarning",
+                                   base::StringValue(warning));
 }
 
 void BrowserOptionsHandler::ShowProfileCreationSuccess(
@@ -1850,10 +1862,6 @@ std::string BrowserOptionsHandler::GetJavascriptMethodName(
       return importing_existing_managed_user_ ?
           "BrowserOptions.showManagedUserImportError" :
           "BrowserOptions.showCreateProfileError";
-    case PROFILE_CREATION_WARNING:
-      return importing_existing_managed_user_ ?
-          "BrowserOptions.showManagedUserImportWarning" :
-          "BrowserOptions.showCreateProfileWarning";
   }
 
   NOTREACHED();

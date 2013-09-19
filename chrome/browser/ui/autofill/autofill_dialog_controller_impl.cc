@@ -79,10 +79,10 @@
 #include "grit/webkit_resources.h"
 #include "net/cert/cert_status_flags.h"
 #include "ui/base/base_window.h"
-#include "ui/base/events/event.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/combobox_model.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/events/event.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/gfx/skia_util.h"
@@ -532,6 +532,28 @@ base::string16 GenerateRandomCardNumber() {
   return ASCIIToUTF16(card_number);
 }
 
+gfx::Image CreditCardIconForType(const std::string& credit_card_type) {
+  const int input_card_idr = CreditCard::IconResourceId(credit_card_type);
+  ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
+  gfx::Image result = rb.GetImageNamed(input_card_idr);
+  if (input_card_idr == IDR_AUTOFILL_CC_GENERIC) {
+    // When the credit card type is unknown, no image should be shown. However,
+    // to simplify the view code on Mac, save space for the credit card image by
+    // returning a transparent image of the appropriate size.
+    result = gfx::Image(gfx::ImageSkiaOperations::CreateTransparentImage(
+        result.AsImageSkia(), 0));
+  }
+  return result;
+}
+
+gfx::Image CvcIconForCreditCardType(const base::string16& credit_card_type) {
+  ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
+  if (credit_card_type == l10n_util::GetStringUTF16(IDS_AUTOFILL_CC_AMEX))
+    return rb.GetImageNamed(IDR_CREDIT_CARD_CVC_HINT_AMEX);
+
+  return rb.GetImageNamed(IDR_CREDIT_CARD_CVC_HINT);
+}
+
 }  // namespace
 
 AutofillDialogViewDelegate::~AutofillDialogViewDelegate() {}
@@ -568,6 +590,8 @@ void AutofillDialogControllerImpl::RegisterProfilePrefs(
       ::prefs::kAutofillDialogShowCount,
       0,
       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+  // TODO(estade): this pref is no longer used, but may prove to be valuable.
+  // Remove it if we don't wind up using it at some point.
   registry->RegisterBooleanPref(
       ::prefs::kAutofillDialogHasPaidWithWallet,
       false,
@@ -903,12 +927,6 @@ bool AutofillDialogControllerImpl::SectionIsActive(DialogSection section)
     return section == SECTION_CC_BILLING || section == SECTION_SHIPPING;
 
   return section != SECTION_CC_BILLING;
-}
-
-bool AutofillDialogControllerImpl::HasCompleteWallet() const {
-  return wallet_items_.get() != NULL &&
-         !wallet_items_->instruments().empty() &&
-         !wallet_items_->addresses().empty();
 }
 
 bool AutofillDialogControllerImpl::IsSubmitPausedOn(
@@ -1508,13 +1526,20 @@ gfx::Image AutofillDialogControllerImpl::SuggestionIconForSection(
 }
 
 gfx::Image AutofillDialogControllerImpl::ExtraSuggestionIconForSection(
-    DialogSection section) const {
-  if (section == SECTION_CC || section == SECTION_CC_BILLING)
-    return IconForField(CREDIT_CARD_VERIFICATION_CODE, string16());
+    DialogSection section) {
+  if (section != SECTION_CC && section != SECTION_CC_BILLING)
+    return gfx::Image();
 
-  return gfx::Image();
+  scoped_ptr<DataModelWrapper> model = CreateWrapper(section);
+  if (!model.get())
+    return gfx::Image();
+
+  return CvcIconForCreditCardType(
+      model->GetInfo(AutofillType(CREDIT_CARD_TYPE)));
 }
 
+// TODO(groby): Remove this deprecated method after Mac starts using
+// IconsForFields. http://crbug.com/292876
 gfx::Image AutofillDialogControllerImpl::IconForField(
     ServerFieldType type, const string16& user_input) const {
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
@@ -1536,6 +1561,34 @@ gfx::Image AutofillDialogControllerImpl::IconForField(
   }
 
   return gfx::Image();
+}
+
+FieldIconMap AutofillDialogControllerImpl::IconsForFields(
+    const FieldValueMap& user_inputs) const {
+  FieldIconMap result;
+  base::string16 credit_card_type;
+
+  FieldValueMap::const_iterator credit_card_iter =
+      user_inputs.find(CREDIT_CARD_NUMBER);
+  if (credit_card_iter != user_inputs.end()) {
+    const string16& number = credit_card_iter->second;
+    const std::string type = CreditCard::GetCreditCardType(number);
+    credit_card_type = CreditCard::TypeForDisplay(type);
+    result[CREDIT_CARD_NUMBER] = CreditCardIconForType(type);
+  }
+
+  if (!user_inputs.count(CREDIT_CARD_VERIFICATION_CODE))
+    return result;
+
+  result[CREDIT_CARD_VERIFICATION_CODE] =
+      CvcIconForCreditCardType(credit_card_type);
+
+  return result;
+}
+
+bool AutofillDialogControllerImpl::FieldControlsIcons(
+    ServerFieldType type) const {
+  return type == CREDIT_CARD_NUMBER;
 }
 
 // TODO(estade): Replace all the error messages here with more helpful and
@@ -1822,25 +1875,6 @@ std::vector<DialogNotification> AutofillDialogControllerImpl::
     CurrentNotifications() {
   std::vector<DialogNotification> notifications;
 
-  if (IsPayingWithWallet() && !wallet::IsUsingProd()) {
-    notifications.push_back(DialogNotification(
-        DialogNotification::DEVELOPER_WARNING,
-        l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_NOT_PROD_WARNING)));
-  }
-
-  if (RequestingCreditCardInfo() && !TransmissionWillBeSecure()) {
-    notifications.push_back(DialogNotification(
-        DialogNotification::SECURITY_WARNING,
-        l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_SECURITY_WARNING)));
-  }
-
-  if (!invoked_from_same_origin_) {
-    notifications.push_back(DialogNotification(
-        DialogNotification::SECURITY_WARNING,
-        l10n_util::GetStringFUTF16(IDS_AUTOFILL_DIALOG_SITE_WARNING,
-                                   UTF8ToUTF16(source_url_.host()))));
-  }
-
   // TODO(dbeam): figure out a way to dismiss this error after a while.
   if (wallet_error_notification_)
     notifications.push_back(*wallet_error_notification_);
@@ -1865,26 +1899,38 @@ std::vector<DialogNotification> AutofillDialogControllerImpl::
             IDS_AUTOFILL_DIALOG_CHOOSE_DIFFERENT_WALLET_INSTRUMENT)));
   }
 
-  if (should_show_wallet_promo_ && notifications.empty()) {
-    if (IsPayingWithWallet() && HasCompleteWallet()) {
-      notifications.push_back(DialogNotification(
-          DialogNotification::EXPLANATORY_MESSAGE,
-          l10n_util::GetStringUTF16(
-              IDS_AUTOFILL_DIALOG_DETAILS_FROM_WALLET)));
-    } else if ((IsPayingWithWallet() && !HasCompleteWallet()) ||
-               has_shown_wallet_usage_confirmation_) {
-      DialogNotification notification(
-          DialogNotification::WALLET_USAGE_CONFIRMATION,
-          l10n_util::GetStringUTF16(
-              IDS_AUTOFILL_DIALOG_SAVE_DETAILS_IN_WALLET));
-      notification.set_tooltip_text(
-          l10n_util::GetStringUTF16(
-              IDS_AUTOFILL_DIALOG_SAVE_IN_WALLET_TOOLTIP));
-      notification.set_checked(account_chooser_model_.WalletIsSelected());
-      notification.set_interactive(!is_submitting_);
-      notifications.push_back(notification);
-      has_shown_wallet_usage_confirmation_ = true;
-    }
+  if (notifications.empty() && MenuModelForAccountChooser()) {
+    base::string16 text = l10n_util::GetStringUTF16(
+        IsManuallyEditingAnySection() ?
+            IDS_AUTOFILL_DIALOG_SAVE_DETAILS_IN_WALLET :
+            IDS_AUTOFILL_DIALOG_USE_WALLET);
+    DialogNotification notification(
+        DialogNotification::WALLET_USAGE_CONFIRMATION,
+        text);
+    notification.set_tooltip_text(
+        l10n_util::GetStringUTF16(
+            IDS_AUTOFILL_DIALOG_SAVE_IN_WALLET_TOOLTIP));
+    notification.set_checked(IsPayingWithWallet());
+    notifications.push_back(notification);
+  }
+
+  if (IsPayingWithWallet() && !wallet::IsUsingProd()) {
+    notifications.push_back(DialogNotification(
+        DialogNotification::DEVELOPER_WARNING,
+        l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_NOT_PROD_WARNING)));
+  }
+
+  if (RequestingCreditCardInfo() && !TransmissionWillBeSecure()) {
+    notifications.push_back(DialogNotification(
+        DialogNotification::SECURITY_WARNING,
+        l10n_util::GetStringUTF16(IDS_AUTOFILL_DIALOG_SECURITY_WARNING)));
+  }
+
+  if (!invoked_from_same_origin_) {
+    notifications.push_back(DialogNotification(
+        DialogNotification::SECURITY_WARNING,
+        l10n_util::GetStringFUTF16(IDS_AUTOFILL_DIALOG_SITE_WARNING,
+                                   UTF8ToUTF16(source_url_.host()))));
   }
 
   return notifications;
@@ -2048,7 +2094,6 @@ void AutofillDialogControllerImpl::Observe(
   content::LoadCommittedDetails* load_details =
       content::Details<content::LoadCommittedDetails>(details).ptr();
   if (wallet::IsSignInContinueUrl(load_details->entry->GetVirtualURL())) {
-    should_show_wallet_promo_ = false;
     account_chooser_model_.SelectActiveWalletAccount();
     signin_helper_.reset(new wallet::WalletSigninHelper(
         this, profile_->GetRequestContext()));
@@ -2088,6 +2133,7 @@ void AutofillDialogControllerImpl::SuggestionItemSelected(
   ResetSectionInput(section);
   ShowEditUiIfBadSuggestion(section);
   UpdateSection(section);
+  view_->UpdateNotificationArea();
   UpdateForErrors();
 
   LogSuggestionItemSelectedMetric(*model);
@@ -2340,9 +2386,6 @@ AutofillDialogControllerImpl::AutofillDialogControllerImpl(
       cares_about_shipping_(true),
       input_showing_popup_(NULL),
       weak_ptr_factory_(this),
-      should_show_wallet_promo_(!profile_->GetPrefs()->GetBoolean(
-          ::prefs::kAutofillDialogHasPaidWithWallet)),
-      has_shown_wallet_usage_confirmation_(false),
       has_accepted_legal_documents_(false),
       is_submitting_(false),
       choose_another_instrument_or_address_(false),

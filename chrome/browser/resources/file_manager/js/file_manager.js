@@ -1168,10 +1168,10 @@ var BOTTOM_MARGIN_FOR_PREVIEW_PANEL_PX = 52;
    */
   FileManager.prototype.updateMiddleBarVisibility_ = function() {
     var currentPath = this.directoryModel_.getCurrentDirPath();
-    var driveStatus = this.volumeManager_.getDriveStatus();
+    var driveVolume = this.volumeManager_.getVolumeInfo(RootDirectory.DRIVE);
     var visible =
         DirectoryTreeUtil.isEligiblePathForDirectoryTree(currentPath) &&
-        driveStatus == VolumeManager.DriveStatus.MOUNTED;
+        driveVolume && !driveVolume.error;
     this.dialogDom_.
         querySelector('.dialog-middlebar-contents').hidden = !visible;
     this.dialogDom_.querySelector('#middlebar-splitter').hidden = !visible;
@@ -1206,10 +1206,14 @@ var BOTTOM_MARGIN_FOR_PREVIEW_PANEL_PX = 52;
   };
 
   FileManager.prototype.refocus = function() {
+    var targetElement;
     if (this.dialogType == DialogType.SELECT_SAVEAS_FILE)
-      this.filenameInput_.focus();
+      targetElement = this.filenameInput_;
     else
-      this.currentList_.focus();
+      targetElement = this.currentList_;
+
+    if (targetElement.tabIndex != -1)
+      targetElement.focus();
   };
 
   /**
@@ -1559,7 +1563,7 @@ var BOTTOM_MARGIN_FOR_PREVIEW_PANEL_PX = 52;
         this.finishSetupCurrentDirectory_(path);
         return;
       }
-      if (this.volumeManager_.isMounted(RootDirectory.DRIVE)) {
+      if (this.volumeManager_.getVolumeInfo(RootDirectory.DRIVE)) {
         this.finishSetupCurrentDirectory_(path);
         return;
       }

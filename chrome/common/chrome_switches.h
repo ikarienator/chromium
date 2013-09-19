@@ -99,6 +99,7 @@ extern const char kDisableCRLSets[];
 extern const char kDisableCustomJumpList[];
 extern const char kDisableDefaultApps[];
 extern const char kDisableDeviceDiscovery[];
+extern const char kDisableDeviceDiscoveryNotifications[];
 extern const char kDisableDhcpWpad[];
 extern const char kDisableDnsProbes[];
 extern const char kDisableExtensionsFileAccessCheck[];
@@ -436,7 +437,6 @@ extern const char kMigrateDataDirForSxS[];
 
 #if defined(OS_MACOSX)
 extern const char kDisableSystemFullscreenForTesting[];
-extern const char kEnableAppListShim[];
 extern const char kEnableAppShims[];
 extern const char kEnableExposeForTabs[];
 extern const char kEnableSimplifiedFullscreen[];

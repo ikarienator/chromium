@@ -296,8 +296,9 @@ FileListBannerController.prototype.checkSpaceAndMaybeShowWelcomeBanner_ =
     return;
   }
 
+  var driveVolume = this.volumeManager_.getVolumeInfo(RootDirectory.DRIVE);
   if (this.welcomeHeaderCounter_ >= WELCOME_HEADER_COUNTER_LIMIT ||
-      !this.directoryModel_.isDriveMounted()) {
+      !driveVolume || driveVolume.error) {
     // The banner is already shown enough times or the drive FS is not mounted.
     // So, do nothing here.
     return;
@@ -596,21 +597,13 @@ FileListBannerController.prototype.ensureDriveUnmountedPanelInitialized_ =
 FileListBannerController.prototype.updateDriveUnmountedPanel_ = function() {
   var node = this.document_.body;
   if (this.isOnDrive()) {
-    var status = this.volumeManager_.getDriveStatus();
-    if (status == VolumeManager.DriveStatus.MOUNTING ||
-        status == VolumeManager.DriveStatus.ERROR) {
+    var driveVolume = this.volumeManager_.getVolumeInfo(RootDirectory.DRIVE);
+    if (driveVolume && driveVolume.error) {
       this.ensureDriveUnmountedPanelInitialized_();
-    }
-    if (status == VolumeManager.DriveStatus.MOUNTING &&
-        this.welcomeHeaderCounter_ == 0) {
-      // Do not increment banner counter in order to not prevent the full
-      // page banner of being shown (otherwise it would never be shown).
-      this.showWelcomeBanner_('header', 'DRIVE_WELCOME_TEXT_SHORT');
-    }
-    if (status == VolumeManager.DriveStatus.ERROR)
       this.unmountedPanel_.classList.add('retry-enabled');
-    else
+    } else {
       this.unmountedPanel_.classList.remove('retry-enabled');
+    }
     node.setAttribute('drive', status);
   } else {
     node.removeAttribute('drive');

@@ -19,9 +19,11 @@
 #include "base/version.h"
 #endif
 
-using content::KeySystemInfo;
+#if defined(OS_ANDROID)
+#include "chrome/common/encrypted_media_messages_android.h"
+#endif
 
-static const char kClearKeyKeySystem[] = "webkit-org.w3.clearkey";
+using content::KeySystemInfo;
 
 static const char kAudioWebM[] = "audio/webm";
 static const char kVideoWebM[] = "video/webm";
@@ -33,21 +35,6 @@ static const char kVideoMp4[] = "video/mp4";
 static const char kMp4a[] = "mp4a";
 static const char kAvc1[] = "avc1";
 static const char kMp4aAvc1[] = "mp4a,avc1";
-
-static void AddClearKey(std::vector<KeySystemInfo>* concrete_key_systems) {
-  KeySystemInfo info(kClearKeyKeySystem);
-
-  info.supported_types.push_back(std::make_pair(kAudioWebM, kVorbis));
-  info.supported_types.push_back(std::make_pair(kVideoWebM, kVorbisVP8));
-#if defined(USE_PROPRIETARY_CODECS)
-  info.supported_types.push_back(std::make_pair(kAudioMp4, kMp4a));
-  info.supported_types.push_back(std::make_pair(kVideoMp4, kMp4aAvc1));
-#endif  // defined(USE_PROPRIETARY_CODECS)
-
-  info.use_aes_decryptor = true;
-
-  concrete_key_systems->push_back(info);
-}
 
 #if defined(ENABLE_PEPPER_CDMS)
 static bool IsPepperCdmRegistered(const std::string& pepper_type) {
@@ -87,6 +74,12 @@ static void AddExternalClearKey(
 
 
 #if defined(WIDEVINE_CDM_AVAILABLE)
+enum WidevineCdmType {
+  WIDEVINE,
+  WIDEVINE_HR,
+  WIDEVINE_HRSURFACE,
+};
+
 // Defines bitmask values used to specify supported codecs.
 // Each value represents a codec within a specific container.
 enum SupportedCodecs {
@@ -97,16 +90,26 @@ enum SupportedCodecs {
 #endif  // defined(USE_PROPRIETARY_CODECS)
 };
 
-enum WidevineCdmType {
-  WIDEVINE,
-  WIDEVINE_HR,
-};
+#if defined(OS_ANDROID)
+#define COMPILE_ASSERT_MATCHING_ENUM(name) \
+  COMPILE_ASSERT(static_cast<int>(name) == \
+                 static_cast<int>(android::name), \
+                 mismatching_enums)
+COMPILE_ASSERT_MATCHING_ENUM(WEBM_VP8_AND_VORBIS);
+COMPILE_ASSERT_MATCHING_ENUM(MP4_AAC);
+COMPILE_ASSERT_MATCHING_ENUM(MP4_AVC1);
+#undef COMPILE_ASSERT_MATCHING_ENUM
 
+static const uint8 kWidevineUuid[16] = {
+    0xED, 0xEF, 0x8B, 0xA9, 0x79, 0xD6, 0x4A, 0xCE,
+    0xA3, 0xC8, 0x27, 0xDC, 0xD5, 0x1D, 0x21, 0xED };
+#else
 static bool IsWidevineHrSupported() {
   // TODO(jrummell): Need to call CheckPlatformState() but it is
   // asynchronous, and needs to be done in the browser.
   return false;
 }
+#endif
 
 // Return |name|'s parent key system.
 static std::string GetDirectParentName(std::string name) {
@@ -130,6 +133,9 @@ static void AddWidevineWithCodecs(
     case WIDEVINE_HR:
       info.key_system.append(".hr");
       break;
+    case WIDEVINE_HRSURFACE:
+      info.key_system.append(".hrsurface");
+      break;
     default:
       NOTREACHED();
   }
@@ -152,9 +158,6 @@ static void AddWidevineWithCodecs(
 #if defined(ENABLE_PEPPER_CDMS)
   info.pepper_type = kWidevineCdmPluginMimeType;
 #elif defined(OS_ANDROID)
-  static const uint8 kWidevineUuid[16] = {
-      0xED, 0xEF, 0x8B, 0xA9, 0x79, 0xD6, 0x4A, 0xCE,
-      0xA3, 0xC8, 0x27, 0xDC, 0xD5, 0x1D, 0x21, 0xED };
   info.uuid.assign(kWidevineUuid, kWidevineUuid + arraysize(kWidevineUuid));
 #endif  // defined(ENABLE_PEPPER_CDMS)
 
@@ -196,21 +199,37 @@ static void AddPepperBasedWidevine(
 #elif defined(OS_ANDROID)
 static void AddAndroidWidevine(
     std::vector<KeySystemInfo>* concrete_key_systems) {
-#if defined(USE_PROPRIETARY_CODECS)
-  SupportedCodecs supported_codecs =
-      static_cast<SupportedCodecs>(MP4_AAC | MP4_AVC1);
-  AddWidevineWithCodecs(WIDEVINE, supported_codecs, concrete_key_systems);
+  android::SupportedKeySystemRequest request;
+  android::SupportedKeySystemResponse response;
 
-  if (IsWidevineHrSupported())
-    AddWidevineWithCodecs(WIDEVINE_HR, supported_codecs, concrete_key_systems);
+  request.uuid.insert(request.uuid.begin(), kWidevineUuid,
+                      kWidevineUuid + arraysize(kWidevineUuid));
+#if defined(USE_PROPRIETARY_CODECS)
+  request.codecs = static_cast<android::SupportedCodecs>(
+      android::MP4_AAC | android::MP4_AVC1);
 #endif  // defined(USE_PROPRIETARY_CODECS)
+  content::RenderThread::Get()->Send(
+      new ChromeViewHostMsg_GetSupportedKeySystems(request, &response));
+  DCHECK_EQ(response.compositing_codecs >> 3, 0) << "unrecognized codec";
+  DCHECK_EQ(response.non_compositing_codecs >> 3, 0) << "unrecognized codec";
+  if (response.compositing_codecs > 0) {
+    AddWidevineWithCodecs(
+        WIDEVINE,
+        static_cast<SupportedCodecs>(response.compositing_codecs),
+        concrete_key_systems);
+  }
+
+  if (response.non_compositing_codecs > 0) {
+    AddWidevineWithCodecs(
+        WIDEVINE_HRSURFACE,
+        static_cast<SupportedCodecs>(response.non_compositing_codecs),
+        concrete_key_systems);
+  }
 }
 #endif  // defined(ENABLE_PEPPER_CDMS)
 #endif  // defined(WIDEVINE_CDM_AVAILABLE)
 
 void AddChromeKeySystems(std::vector<KeySystemInfo>* key_systems_info) {
-  AddClearKey(key_systems_info);
-
 #if defined(ENABLE_PEPPER_CDMS)
   AddExternalClearKey(key_systems_info);
 #endif

@@ -696,6 +696,15 @@ const Experiment kExperiments[] = {
     SINGLE_VALUE_TYPE(switches::kEnableSmoothScrolling)
   },
   {
+    "enable-overlay-scrollbars",
+    IDS_FLAGS_ENABLE_OVERLAY_SCROLLBARS_NAME,
+    IDS_FLAGS_ENABLE_OVERLAY_SCROLLBARS_DESCRIPTION,
+    // Uses the system preference on Mac (a different implementation).
+    // On Android, this is always enabled.
+    kOsWin | kOsLinux | kOsCrOS,
+    SINGLE_VALUE_TYPE(switches::kEnableOverlayScrollbars)
+  },
+  {
     "enable-panels",
     IDS_FLAGS_ENABLE_PANELS_NAME,
     IDS_FLAGS_ENABLE_PANELS_DESCRIPTION,
@@ -1516,6 +1525,7 @@ const Experiment kExperiments[] = {
     kOsAll,
     SINGLE_VALUE_TYPE(switches::kSyncfsEnableDirectoryOperation),
   },
+#if defined(ENABLE_MDNS)
   {
     "disable-device-discovery",
     IDS_FLAGS_DISABLE_DEVICE_DISCOVERY_NAME,
@@ -1523,14 +1533,15 @@ const Experiment kExperiments[] = {
     kOsWin | kOsLinux | kOsCrOS,
     SINGLE_VALUE_TYPE(switches::kDisableDeviceDiscovery)
   },
-#if defined(OS_MACOSX)
   {
-    "enable-app-list-shim",
-    IDS_FLAGS_ENABLE_APP_LIST_SHIM_NAME,
-    IDS_FLAGS_ENABLE_APP_LIST_SHIM_DESCRIPTION,
-    kOsMac,
-    SINGLE_VALUE_TYPE(switches::kEnableAppListShim)
+    "disable-device-discovery-notifications",
+    IDS_FLAGS_DISABLE_DEVICE_DISCOVERY_NOTIFICATIONS_NAME,
+    IDS_FLAGS_DISABLE_DEVICE_DISCOVERY_NOTIFICATIONS_DESCRIPTION,
+    kOsWin | kOsLinux | kOsCrOS,
+    SINGLE_VALUE_TYPE(switches::kDisableDeviceDiscoveryNotifications)
   },
+#endif  // ENABLE_MDNS
+#if defined(OS_MACOSX)
   {
     "enable-app-shims",
     IDS_FLAGS_ENABLE_APP_SHIMS_NAME,
@@ -1677,13 +1688,6 @@ const Experiment kExperiments[] = {
     IDS_FLAGS_MAP_IMAGE_DESCRIPTION,
     kOsAll,
     MULTI_VALUE_TYPE(kMapImageChoices)
-  },
-  {
-    "enable-device-motion",
-    IDS_FLAGS_ENABLE_DEVICE_MOTION_NAME,
-    IDS_FLAGS_ENABLE_DEVICE_MOTION_DESCRIPTION,
-    kOsDesktop,
-    SINGLE_VALUE_TYPE(switches::kEnableDeviceMotion)
   },
   {
     "enable-add-to-homescreen",

@@ -38,7 +38,7 @@ public class AwLayoutSizer {
 
     private double mDIPScale;
 
-    // Was our heightSpec set to AT_MOST the last time onMeasure was called?
+    // Was our height larger than the AT_MOST constraint the last time onMeasure was called?
     private boolean mHeightMeasurementLimited;
     // If mHeightMeasurementLimited is true then this contains the height limit.
     private int mHeightMeasurementLimit;
@@ -65,22 +65,6 @@ public class AwLayoutSizer {
 
     public void setDIPScale(double dipScale) {
         mDIPScale = dipScale;
-    }
-
-    /**
-     * This is used to register the AwLayoutSizer to preferred content size change notifications in
-     * the AwWebContentsDelegate.
-     * NOTE: The preferred size notifications come in from the Renderer main thread and might be
-     * out of sync with the content size as seen by the InProcessViewRenderer (and Compositor).
-     */
-    public AwWebContentsDelegateAdapter.PreferredSizeChangedListener
-            getPreferredSizeChangedListener() {
-        return new AwWebContentsDelegateAdapter.PreferredSizeChangedListener() {
-            @Override
-            public void updatePreferredSize(int widthCss, int heightCss) {
-                onContentSizeChanged(widthCss, heightCss);
-            }
-        };
     }
 
     /**
@@ -168,12 +152,11 @@ public class AwLayoutSizer {
         // Always use the given size unless unspecified. This matches WebViewClassic behavior.
         mWidthMeasurementIsFixed = (widthMode != MeasureSpec.UNSPECIFIED);
         mHeightMeasurementIsFixed = (heightMode == MeasureSpec.EXACTLY);
-        mHeightMeasurementLimited = (heightMode == MeasureSpec.AT_MOST);
+        mHeightMeasurementLimited =
+            (heightMode == MeasureSpec.AT_MOST) && (contentHeightPix > heightSize);
         mHeightMeasurementLimit = heightSize;
 
-        final boolean measuredHeightClipped =
-            mHeightMeasurementLimited && (contentHeightPix > heightSize);
-        if (mHeightMeasurementIsFixed || measuredHeightClipped) {
+        if (mHeightMeasurementIsFixed || mHeightMeasurementLimited) {
             measuredHeight = heightSize;
         }
 
