@@ -33,6 +33,7 @@ function handleResponse(requestId, name, success, responseList, error) {
   // setting this on the callback's chrome object, but set on ours too since
   // it's conceivable that something relies on that.
   var chromesForLastError = [chrome];
+  var i;
 
   try {
     var request = requests[requestId];
@@ -47,13 +48,14 @@ function handleResponse(requestId, name, success, responseList, error) {
         $Array.push(chromesForLastError, chromeForCallback);
     }
 
-    $Array.forEach(chromesForLastError, function(c) {lastError.clear(c)});
+    for (i = 0; i < chromesForLastError.length; i++)
+      lastError.clear(chromesForLastError[i]);
+
     if (!success) {
       if (!error)
         error = "Unknown error.";
-      $Array.forEach(chromesForLastError, function(c) {
-        lastError.set(name, error, request.stack, c)
-      });
+      for (i = 0; i < chromesForLastError.length; i++)
+        lastError.set(name, error, request.stack, chromesForLastError[i]);
     }
 
     if (request.customCallback) {
@@ -77,22 +79,24 @@ function handleResponse(requestId, name, success, responseList, error) {
     }
   } finally {
     delete requests[requestId];
-    $Array.forEach(chromesForLastError, function(c) {lastError.clear(c)});
+    for (i = 0; i < chromesForLastError.length; i++)
+      lastError.clear(chromesForLastError[i]);
   }
 };
 
 function getExtensionStackTrace(call_name) {
   var stack = $String.split(new Error().stack, '\n');
+  var i = 0;
+  var j = stack.length;
+  var id = processNatives.GetExtensionId();
 
   // Remove stack frames before and after that weren't associated with the
   // extension.
-  var id = processNatives.GetExtensionId();
-  while (stack.length > 0 && stack[0].indexOf(id) == -1)
-    stack.shift();
-  while (stack.length > 0 && stack[stack.length - 1].indexOf(id) == -1)
-    stack.pop();
+  while (i < j && stack[i].indexOf(id) == -1) i++;
+  while (i < j && stack[j - 1].indexOf(id) == -1) j--;
+  $Array.slice(stack, i, j);
 
-  return stack.join('\n');
+  return $Array.join(stack, '\n');
 }
 
 function prepareRequest(args, argSchemas) {
