@@ -32,7 +32,7 @@ function handleResponse(requestId, name, success, responseList, error) {
   // The chrome objects we will set lastError on. Really we should only be
   // setting this on the callback's chrome object, but set on ours too since
   // it's conceivable that something relies on that.
-  var callerChrome;
+  var callerChrome = chrome;
 
   try {
     var request = requests[requestId];
