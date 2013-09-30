@@ -397,6 +397,8 @@
         'browser/extensions/api/omnibox/omnibox_api.h',
         'browser/extensions/api/page_capture/page_capture_api.cc',
         'browser/extensions/api/page_capture/page_capture_api.h',
+        'browser/extensions/api/performance/performance_api.cc',
+        'browser/extensions/api/performance/performance_api.h',
         'browser/extensions/api/permissions/permissions_api.cc',
         'browser/extensions/api/permissions/permissions_api.h',
         'browser/extensions/api/permissions/permissions_api_helpers.cc',

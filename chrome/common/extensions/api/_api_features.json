@@ -385,6 +385,11 @@
     "contexts": "all",
     "matches": ["<all_urls>"]
   },
+  "performance": {
+    "channel": "dev",
+    "extension_types": ["extension", "legacy_packaged_app", "platform_app"],
+    "contexts": ["blessed_extension", "unblessed_extension", "content_script"]
+  },
   "power": {
     "dependencies": ["permission:power"],
     "contexts": ["blessed_extension"]

@@ -10,6 +10,7 @@ var validate = require('schemaUtils').validate;
 
 // All outstanding requests from sendRequest().
 var requests = {};
+var requestExecutionTime = {};
 
 // Used to prevent double Activity Logging for API calls that use both custom
 // bindings and ExtensionFunctions (via sendRequest).
@@ -36,6 +37,12 @@ function handleResponse(requestId, name, success, responseList, error) {
 
   try {
     var request = requests[requestId];
+    request.endTime = performance.now();
+    
+    if (!requestExecutionTime[name])
+      requestExecutionTime[name] = [];
+    requestExecutionTime[name].push(request.endTime - request.startTime);
+    
     logging.DCHECK(request != null);
 
     // lastError needs to be set on the caller's chrome object no matter what,
@@ -106,7 +113,7 @@ function prepareRequest(args, argSchemas) {
     request.callbackSchema = argSchemas[argSchemas.length - 1];
     --argCount;
   }
-
+  request.startTime = performance.now();
   request.args = [];
   for (var k = 0; k < argCount; k++) {
     request.args[k] = args[k];
@@ -125,6 +132,11 @@ function prepareRequest(args, argSchemas) {
 //   thread.
 // - preserveNullInObjects: true if it is safe for null to be in objects.
 function sendRequest(functionName, args, argSchemas, optArgs) {
+  if (functionName == 'performance.getRequestsExecutionTime') {
+    $Function.apply(args[args.length - 1], {}, [getRequestsExecutionTime()]);
+    return;
+  }
+  
   calledSendRequest = true;
   if (!optArgs)
     optArgs = {};
@@ -155,6 +167,10 @@ function getCalledSendRequest() {
 
 function clearCalledSendRequest() {
   calledSendRequest = false;
+}
+
+function getRequestsExecutionTime() {
+  return requestExecutionTime;
 }
 
 exports.sendRequest = sendRequest;

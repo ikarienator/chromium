@@ -82,6 +82,7 @@
           'notifications.idl',
           'omnibox.json',
           'page_capture.json',
+          'performance.idl',
           'permissions.json',
           'preferences_private.json',
           'power.idl',
