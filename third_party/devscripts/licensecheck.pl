@@ -514,7 +514,7 @@ sub parselicense($) {
 	} else {
 	    $license = "BSD $license";
 	}
-    } elsif ($licensetext =~ /Use of this source code is governed by a BSD-style license/) {
+    } elsif ($licensetext =~ /a BSD-style license/) {
         $license = "BSD-like $license";
     } elsif ($licensetext =~ /BSD terms apply/) {
         $license = "BSD-like $license";
