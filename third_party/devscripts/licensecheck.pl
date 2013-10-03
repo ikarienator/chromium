@@ -468,10 +468,10 @@ sub parselicense($) {
 
     if ($licensetext =~ /is free software.? you (can|may) redistribute it and\/or modify it under the terms of (?:version [^ ]+ (?:\(?only\)? )?of )?the GNU General Public License/i) {
 	$license = "GPL$gplver$extrainfo $license";
-    } elsif ($licensetext =~ /(is|be) (distributed|licensed) under the terms of the GNU General Public License/i
+    } elsif ($licensetext =~ /under the terms of the GNU General Public License/i
 	and $gplver) {
 	$license = "GPL$gplver$extrainfo $license";
-    } elsif ($licensetext =~ /(is|be) (distributed|licensed).*terms.*[^L]GPL/) {
+    } elsif ($licensetext =~ /terms.*[^L]GPL/) {
         if ($gplver) {
 	    $license = "GPL$gplver$extrainfo $license";
         } else {
