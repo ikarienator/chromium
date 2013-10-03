@@ -48,6 +48,7 @@ WHITELISTED_LICENSES = [
     'BSD (3 clause) MIT/X11 (BSD like)',
     'BSD (4 clause)',
     'BSD-like',
+    'BSD-like GPL (v3)',
 
     # TODO(phajdan.jr): Make licensecheck not print BSD-like twice.
     'BSD-like MIT/X11 (BSD like)',
