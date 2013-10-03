@@ -437,7 +437,7 @@ sub parselicense($) {
 
     if ($licensetext =~ /version ([^, ]+?)[.,]? (?:\(?only\)?.? )?(?:of the GNU (Affero )?General Public License )?(as )?published by the Free Software Foundation/i or
 	$licensetext =~ /GNU (?:Affero )?General Public License (?:as )?published by the Free Software Foundation; version ([^, ]+?)[.,]? /i or
-	$licensetext =~ /GNU (?:Affero )?General Public License,? [Vv]ersion (\d+(?:\.\d+)?)[ \.]/) {
+	$licensetext =~ /GNU (?:Affero )?General Public License,? [Vv](?:ersion )?(\d+(?:\.\d+)?)[ \.,]/) {
 	$gplver = " (v$1)";
     } elsif ($licensetext =~ /either version ([^ ]+)(?: of the License)?, or \(at your option\) any later version/) {
 	$gplver = " (v$1 or later)";
@@ -468,10 +468,10 @@ sub parselicense($) {
 
     if ($licensetext =~ /is free software.? you (can|may) redistribute it and\/or modify it under the terms of (?:version [^ ]+ (?:\(?only\)? )?of )?the GNU General Public License/i) {
 	$license = "GPL$gplver$extrainfo $license";
-    } elsif ($licensetext =~ /is distributed under the terms of the GNU General Public License,/
+    } elsif ($licensetext =~ /(is|be) (distributed|licensed) under the terms of the GNU General Public License/i
 	and $gplver) {
 	$license = "GPL$gplver$extrainfo $license";
-    } elsif ($licensetext =~ /is distributed.*terms.*[^L]GPL/) {
+    } elsif ($licensetext =~ /(is|be) (distributed|licensed).*terms.*[^L]GPL/) {
         if ($gplver) {
 	    $license = "GPL$gplver$extrainfo $license";
         } else {
@@ -516,7 +516,7 @@ sub parselicense($) {
 	} else {
 	    $license = "BSD $license";
 	}
-    } elsif ($licensetext =~ /a BSD-style license/) {
+    } elsif ($licensetext =~ /a BSD-style license/i) {
         $license = "BSD-like $license";
     } elsif ($licensetext =~ /BSD terms apply/) {
         $license = "BSD-like $license";
