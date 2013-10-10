@@ -126,7 +126,8 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   UsbDeviceHandle();
   virtual ~UsbDeviceHandle();
 
-  UsbDevice* device_;
+  scoped_refptr<UsbDevice> device_;
+  bool closed_;
 
  private:
   friend void HandleTransferCompletion(PlatformUsbTransferHandle handle);

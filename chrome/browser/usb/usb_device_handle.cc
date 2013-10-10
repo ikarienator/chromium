@@ -181,25 +181,30 @@ UsbDeviceHandle::UsbDeviceHandle(
     PlatformUsbDeviceHandle handle,
     scoped_refptr<UsbConfigDescriptor> interfaces)
     : device_(device),
+      closed_(false),
       handle_(handle),
       interfaces_(interfaces),
       context_(context) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(handle) << "Cannot create device with NULL handle.";
-  DCHECK(interfaces_) << "Unabled to list interfaces";
+  DCHECK(interfaces_) << "Unable to list interfaces";
 }
 
-UsbDeviceHandle::UsbDeviceHandle() : device_(NULL), handle_(NULL) {
-}
+UsbDeviceHandle::UsbDeviceHandle()
+    : device_(NULL),
+      closed_(false),
+      handle_(NULL) {}
 
 UsbDeviceHandle::~UsbDeviceHandle() {
   DCHECK(thread_checker_.CalledOnValidThread());
 
   libusb_close(handle_);
   handle_ = NULL;
+  device_ = NULL;
 }
 
 scoped_refptr<UsbDevice> UsbDeviceHandle::device() const {
+  if (closed_) return NULL;
   return device_;
 }
 
@@ -295,7 +300,7 @@ void UsbDeviceHandle::TransferComplete(PlatformUsbTransferHandle handle) {
 
 bool UsbDeviceHandle::ClaimInterface(const int interface_number) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  if (!device_) return false;
+  if (closed_) return false;
   if (ContainsKey(claimed_interfaces_, interface_number)) return true;
 
   scoped_refptr<InterfaceClaimer> claimer =
@@ -311,7 +316,7 @@ bool UsbDeviceHandle::ClaimInterface(const int interface_number) {
 
 bool UsbDeviceHandle::ReleaseInterface(const int interface_number) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  if (!device_) return false;
+  if (closed_) return false;
   if (!ContainsKey(claimed_interfaces_, interface_number)) return false;
 
   // Cancel all the transfers on that interface.
@@ -332,7 +337,7 @@ bool UsbDeviceHandle::SetInterfaceAlternateSetting(
     const int interface_number,
     const int alternate_setting) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  if (!device_) return false;
+  if (closed_) return false;
   if (!ContainsKey(claimed_interfaces_, interface_number)) return false;
   const int rv = libusb_set_interface_alt_setting(handle_,
       interface_number, alternate_setting);
@@ -347,7 +352,7 @@ bool UsbDeviceHandle::SetInterfaceAlternateSetting(
 
 bool UsbDeviceHandle::ResetDevice() {
   DCHECK(thread_checker_.CalledOnValidThread());
-  if (!device_) return false;
+  if (closed_) return false;
 
   return libusb_reset_device(handle_) == 0;
 }
@@ -399,7 +404,7 @@ void UsbDeviceHandle::ControlTransfer(const UsbEndpointDirection direction,
     const uint8 request, const uint16 value, const uint16 index,
     net::IOBuffer* buffer, const size_t length, const unsigned int timeout,
     const UsbTransferCallback& callback) {
-  if (!device_) {
+  if (closed_) {
     callback.Run(USB_TRANSFER_DISCONNECT, buffer, 0);
     return;
   }
@@ -439,7 +444,7 @@ void UsbDeviceHandle::ControlTransfer(const UsbEndpointDirection direction,
 void UsbDeviceHandle::BulkTransfer(const UsbEndpointDirection direction,
     const uint8 endpoint, net::IOBuffer* buffer, const size_t length,
     const unsigned int timeout, const UsbTransferCallback& callback) {
-  if (!device_) {
+  if (closed_) {
     callback.Run(USB_TRANSFER_DISCONNECT, buffer, 0);
     return;
   }
@@ -466,7 +471,7 @@ void UsbDeviceHandle::BulkTransfer(const UsbEndpointDirection direction,
 void UsbDeviceHandle::InterruptTransfer(const UsbEndpointDirection direction,
     const uint8 endpoint, net::IOBuffer* buffer, const size_t length,
     const unsigned int timeout, const UsbTransferCallback& callback) {
-  if (!device_) {
+  if (closed_) {
     callback.Run(USB_TRANSFER_DISCONNECT, buffer, 0);
     return;
   }
@@ -493,7 +498,7 @@ void UsbDeviceHandle::IsochronousTransfer(const UsbEndpointDirection direction,
     const uint8 endpoint, net::IOBuffer* buffer, const size_t length,
     const unsigned int packets, const unsigned int packet_length,
     const unsigned int timeout, const UsbTransferCallback& callback) {
-  if (!device_) {
+  if (closed_) {
     callback.Run(USB_TRANSFER_DISCONNECT, buffer, 0);
     return;
   }
@@ -554,7 +559,7 @@ void UsbDeviceHandle::SubmitTransfer(
     scoped_refptr<base::MessageLoopProxy> message_loop_proxy,
     const UsbTransferCallback& callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  if (!device_) {
+  if (closed_) {
     message_loop_proxy->PostTask(
         FROM_HERE,
         base::Bind(callback, USB_TRANSFER_DISCONNECT,
@@ -584,7 +589,7 @@ void UsbDeviceHandle::SubmitTransfer(
 
 void UsbDeviceHandle::InternalClose() {
   DCHECK(thread_checker_.CalledOnValidThread());
-  if (!device_) return;
+  if (closed_) return;
 
   // Cancel all the transfers.
   for (TransferMap::iterator it = transfers_.begin();
@@ -599,5 +604,5 @@ void UsbDeviceHandle::InternalClose() {
 
   // Cannot close device handle here. Need to wait for libusb_cancel_transfer to
   // finish.
-  device_ = NULL;
+  closed_ = true;
 }
