@@ -1,6 +1,6 @@
 Name: hidapi
 URL: http://www.signal11.us/oss/hidapi/
-Version: 0.7.0
+Version: 0.8.0-rc1
 License: BSD
 License File: LICENSE-bsd.txt
 Security Critical: yes
