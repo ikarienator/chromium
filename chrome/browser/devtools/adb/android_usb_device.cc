@@ -231,7 +231,8 @@ static void EnumerateOnFileThread(crypto::RSAPrivateKey* rsa_key,
 
   UsbService* service = UsbService::GetInstance();
   UsbDevices usb_devices;
-  service->GetDevices(&usb_devices);
+  if (service)
+    service->GetDevices(&usb_devices);
 
   AndroidUsbDevices& devices = g_devices.Get();
 
