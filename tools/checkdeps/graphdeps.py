@@ -20,6 +20,7 @@ import optparse
 import pipes
 import re
 import sys
+import json
 
 from builddeps import DepsBuilder
 from rules import Rule
@@ -183,6 +184,31 @@ class DepsGrapher(DepsBuilder):
              ((dst, Rule.TEMP_ALLOW) not in deps_graph[src]) and \
              ((dst, Rule.DISALLOW) not in deps_graph[src]):
             deps_graph[src].append((dst, allow))
+
+    nodes = {}
+    nodeNames = []
+    edges = []
+
+    for src in deps_graph.keys():
+      if src not in nodes:
+        nodes[src] = len(nodes)
+        nodeNames.append(src)
+
+    for src in deps_graph.keys():
+      if nodes[src] < len(edges):
+        es = edges[nodes[src]]
+      else:
+        es = []
+        edges.append(es)
+      for (dst, allow) in deps_graph[src]:
+        if dst not in nodes:
+          nodes[dst] = len(nodes)
+          nodeNames.append(dst)
+        es.append(nodes[dst])
+      es.sort()
+
+    out.write(json.dumps({'nodes': nodeNames, 'edges': edges}))
+    return
 
     node_props = {}
     edges = []
