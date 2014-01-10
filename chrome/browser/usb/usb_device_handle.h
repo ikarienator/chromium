@@ -11,6 +11,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/strings/string16.h"
 #include "base/synchronization/lock.h"
+#include "base/task_runner.h"
 #include "base/threading/thread_checker.h"
 #include "chrome/browser/usb/usb_interface.h"
 #include "content/public/browser/browser_thread.h"
@@ -177,6 +178,9 @@ class UsbDeviceHandle : public base::RefCountedThreadSafe<UsbDeviceHandle> {
   // Retain the UsbContext so that the platform context will not be destroyed
   // before this handle.
   scoped_refptr<UsbContext> context_;
+
+  // The task runner of the thread in which the object is created.
+  scoped_refptr<base::TaskRunner> io_task_runner_;
 
   base::ThreadChecker thread_checker_;
 

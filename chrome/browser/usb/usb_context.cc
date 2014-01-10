@@ -7,6 +7,7 @@
 #include "base/logging.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/threading/platform_thread.h"
+#include "base/threading/thread_restrictions.h"
 #include "content/public/browser/browser_thread.h"
 #include "third_party/libusb/src/libusb/interrupt.h"
 #include "third_party/libusb/src/libusb/libusb.h"
@@ -61,6 +62,7 @@ void UsbContext::UsbEventHandler::ThreadMain() {
 }
 
 UsbContext::UsbContext(PlatformUsbContext context) : context_(context) {
+  base::ThreadRestrictions::AssertIOAllowed();
   DCHECK(thread_checker_.CalledOnValidThread());
   event_handler_ = new UsbEventHandler(context_);
 }

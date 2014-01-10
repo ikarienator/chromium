@@ -12,6 +12,7 @@
 #include "base/basictypes.h"
 #include "base/callback.h"
 #include "base/memory/ref_counted.h"
+#include "base/threading/thread_checker.h"
 
 namespace base {
 
@@ -45,13 +46,17 @@ class UsbService {
 
   // Get all of the devices attached to the system, inserting them into
   // |devices|. Clears |devices| before use. The result will be sorted by id
-  // in increasing order. Must be called on FILE thread.
+  // in increasing order. Must be called on the same thread UsbService is
+  // created.
   void GetDevices(std::vector<scoped_refptr<UsbDevice> >* devices);
+
+ protected:
+  explicit UsbService(PlatformUsbContext context);
+  void SetTestingUsbService(UsbService* testing_service);
 
  private:
   friend class base::DeleteHelper<UsbService>;
 
-  explicit UsbService(PlatformUsbContext context);
   virtual ~UsbService();
 
   // Return true if |device|'s vendor and product identifiers match |vendor_id|
@@ -71,6 +76,8 @@ class UsbService {
   // The map from PlatformUsbDevices to UsbDevices.
   typedef std::map<PlatformUsbDevice, scoped_refptr<UsbDevice> > DeviceMap;
   DeviceMap devices_;
+
+  base::ThreadChecker thread_checker_;
 
   DISALLOW_COPY_AND_ASSIGN(UsbService);
 };
