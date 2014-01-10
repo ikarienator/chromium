@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "base/message_loop/message_loop_proxy.h"
 #include "base/stl_util.h"
 #include "chrome/browser/usb/usb_context.h"
 #include "chrome/browser/usb/usb_device_handle.h"
@@ -20,18 +21,21 @@
 
 using content::BrowserThread;
 
+#if defined(OS_CHROMEOS)
+
 namespace {
 
-#if defined(OS_CHROMEOS)
-void OnRequestUsbAccessReplied(
+void OnRequestUsbAccess(
+    scoped_refptr<base::TaskRunner> task_runner,
     const base::Callback<void(bool success)>& callback,
     bool success) {
-  BrowserThread::PostTask(BrowserThread::FILE, FROM_HERE,
-                          base::Bind(callback, success));
+  task_runner->PostTask(FROM_HERE, base::Bind(callback, success));
 }
-#endif  // defined(OS_CHROMEOS)
 
 }  // namespace
+
+#endif  // defined(OS_CHROMEOS)
+
 
 UsbDevice::UsbDevice(
     scoped_refptr<UsbContext> context,
@@ -86,13 +90,18 @@ void UsbDevice::RequestUsbAcess(
     }
 
     BrowserThread::PostTask(
-        BrowserThread::UI, FROM_HERE,
+        BrowserThread::UI,
+        FROM_HERE,
         base::Bind(&chromeos::PermissionBrokerClient::RequestUsbAccess,
                    base::Unretained(client),
                    this->vendor_id_,
                    this->product_id_,
                    interface_id,
-                   base::Bind(&OnRequestUsbAccessReplied, callback)));
+                   base::Bind(OnRequestUsbAccess,
+                              base::MessageLoopProxy::current(),
+                              callback)));
+  } else {
+    callback.Run(false);
   }
 }
 

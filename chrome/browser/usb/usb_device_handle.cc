@@ -7,7 +7,8 @@
 #include <algorithm>
 #include <vector>
 
-#include "base/message_loop/message_loop.h"
+#include "base/callback_helpers.h"
+#include "base/message_loop/message_loop_proxy.h"
 #include "base/stl_util.h"
 #include "base/strings/string16.h"
 #include "base/synchronization/lock.h"
@@ -99,20 +100,18 @@ static UsbTransferStatus ConvertTransferStatus(
 
 static void LIBUSB_CALL PlatformTransferCompletionCallback(
     PlatformUsbTransferHandle transfer) {
-  BrowserThread::PostTask(BrowserThread::FILE,
-                          FROM_HERE,
-                          base::Bind(HandleTransferCompletion, transfer));
+  HandleTransferCompletion(transfer);
 }
 
 }  // namespace
 
 void HandleTransferCompletion(PlatformUsbTransferHandle transfer) {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
   UsbDeviceHandle* const device_handle =
       reinterpret_cast<UsbDeviceHandle*>(transfer->user_data);
   CHECK(device_handle) << "Device handle is closed before transfer finishes.";
-  device_handle->TransferComplete(transfer);
-  libusb_free_transfer(transfer);
+  device_handle->io_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(&UsbDeviceHandle::TransferComplete, device_handle, transfer));
 }
 
 
@@ -162,6 +161,7 @@ struct UsbDeviceHandle::Transfer {
 
   UsbTransferType transfer_type;
   scoped_refptr<net::IOBuffer> buffer;
+  scoped_refptr<UsbDeviceHandle> device_handle;
   scoped_refptr<UsbDeviceHandle::InterfaceClaimer> claimed_interface;
   scoped_refptr<base::MessageLoopProxy> message_loop_proxy;
   size_t length;
@@ -183,13 +183,19 @@ UsbDeviceHandle::UsbDeviceHandle(
     : device_(device),
       handle_(handle),
       interfaces_(interfaces),
-      context_(context) {
+      context_(context),
+      io_task_runner_(base::MessageLoopProxy::current()) {
+  DCHECK(io_task_runner_);
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(handle) << "Cannot create device with NULL handle.";
   DCHECK(interfaces_) << "Unabled to list interfaces";
 }
 
-UsbDeviceHandle::UsbDeviceHandle() : device_(NULL), handle_(NULL) {
+UsbDeviceHandle::UsbDeviceHandle()
+    : device_(NULL),
+      handle_(NULL),
+      io_task_runner_(base::MessageLoopProxy::current()) {
+  DCHECK(io_task_runner_);
 }
 
 UsbDeviceHandle::~UsbDeviceHandle() {
@@ -211,6 +217,8 @@ void UsbDeviceHandle::Close() {
 
 void UsbDeviceHandle::TransferComplete(PlatformUsbTransferHandle handle) {
   DCHECK(ContainsKey(transfers_, handle)) << "Missing transfer completed";
+  base::ScopedClosureRunner free_transfer(
+      base::Bind(libusb_free_transfer, handle));
 
   Transfer transfer = transfers_[handle];
   transfers_.erase(handle);
@@ -291,6 +299,7 @@ void UsbDeviceHandle::TransferComplete(PlatformUsbTransferHandle handle) {
 
   // Must release interface first before actually delete this.
   transfer.claimed_interface = NULL;
+  transfer.device_handle = NULL;
 }
 
 bool UsbDeviceHandle::ClaimInterface(const int interface_number) {
@@ -423,8 +432,7 @@ void UsbDeviceHandle::ControlTransfer(const UsbEndpointDirection direction,
       this,
       timeout);
 
-  BrowserThread::PostTask(
-      BrowserThread::FILE,
+  io_task_runner_->PostTask(
       FROM_HERE,
       base::Bind(&UsbDeviceHandle::SubmitTransfer,
                  this,
@@ -450,8 +458,7 @@ void UsbDeviceHandle::BulkTransfer(const UsbEndpointDirection direction,
       reinterpret_cast<uint8*>(buffer->data()), length,
       PlatformTransferCompletionCallback, this, timeout);
 
-  BrowserThread::PostTask(
-      BrowserThread::FILE,
+  io_task_runner_->PostTask(
       FROM_HERE,
       base::Bind(&UsbDeviceHandle::SubmitTransfer,
                  this,
@@ -476,8 +483,8 @@ void UsbDeviceHandle::InterruptTransfer(const UsbEndpointDirection direction,
   libusb_fill_interrupt_transfer(transfer, handle_, new_endpoint,
       reinterpret_cast<uint8*>(buffer->data()), length,
       PlatformTransferCompletionCallback, this, timeout);
-  BrowserThread::PostTask(
-      BrowserThread::FILE,
+
+  io_task_runner_->PostTask(
       FROM_HERE,
       base::Bind(&UsbDeviceHandle::SubmitTransfer,
                  this,
@@ -509,8 +516,7 @@ void UsbDeviceHandle::IsochronousTransfer(const UsbEndpointDirection direction,
       PlatformTransferCompletionCallback, this, timeout);
   libusb_set_iso_packet_lengths(transfer, packet_length);
 
-  BrowserThread::PostTask(
-      BrowserThread::FILE,
+  io_task_runner_->PostTask(
       FROM_HERE,
       base::Bind(&UsbDeviceHandle::SubmitTransfer,
                  this,
@@ -567,6 +573,7 @@ void UsbDeviceHandle::SubmitTransfer(
   transfer.length = length;
   transfer.callback = callback;
   transfer.message_loop_proxy = message_loop_proxy;
+  transfer.device_handle = this;
 
   // It's OK for this method to return NULL. libusb_submit_transfer will fail if
   // it requires an interface we didn't claim.

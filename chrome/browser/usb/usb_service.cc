@@ -13,6 +13,7 @@
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "base/stl_util.h"
+#include "base/threading/thread_checker.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/usb/usb_context.h"
 #include "chrome/browser/usb/usb_device.h"
@@ -62,6 +63,10 @@ class ExitObserver : public content::NotificationObserver {
       BrowserThread::DeleteSoon(BrowserThread::FILE,
                                 FROM_HERE,
                                 g_usb_service_instance);
+
+      // Prevents creating a new UsbService.
+      g_usb_service_instance_destroyed = true;
+      g_usb_service_instance = NULL;
       delete this;
     }
   }
@@ -73,15 +78,12 @@ class ExitObserver : public content::NotificationObserver {
 UsbService::UsbService(PlatformUsbContext context)
     : context_(new UsbContext(context)),
       next_unique_id_(0) {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
+  DCHECK(thread_checker_.CalledOnValidThread());
+  g_usb_service_instance = this;
 }
 
 UsbService::~UsbService() {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
-
-  // Prevents creating a new UsbService.
-  g_usb_service_instance_destroyed = true;
-  g_usb_service_instance = NULL;
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   for (DeviceMap::iterator it = devices_.begin(); it != devices_.end(); ++it) {
     it->second->OnDisconnect();
@@ -109,8 +111,12 @@ UsbService* UsbService::GetInstance() {
   return g_usb_service_instance;
 }
 
+void UsbService::SetTestingUsbService(UsbService* testing_service) {
+  g_usb_service_instance = testing_service;
+}
+
 void UsbService::GetDevices(std::vector<scoped_refptr<UsbDevice> >* devices) {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
+  DCHECK(thread_checker_.CalledOnValidThread());
   STLClearObject(devices);
   RefreshDevices();
 
@@ -120,7 +126,7 @@ void UsbService::GetDevices(std::vector<scoped_refptr<UsbDevice> >* devices) {
 }
 
 scoped_refptr<UsbDevice> UsbService::GetDeviceById(uint32 unique_id) {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
+  DCHECK(thread_checker_.CalledOnValidThread());
   RefreshDevices();
 
   for (DeviceMap::iterator it = devices_.begin(); it != devices_.end(); ++it) {
@@ -130,7 +136,7 @@ scoped_refptr<UsbDevice> UsbService::GetDeviceById(uint32 unique_id) {
 }
 
 void UsbService::RefreshDevices() {
-  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
+  DCHECK(thread_checker_.CalledOnValidThread());
 
   libusb_device** platform_devices = NULL;
   const ssize_t device_count =
