@@ -39,8 +39,8 @@ namespace {
 // Singleton is: 1. Singleton focuses on solving race conditions and at-exit
 // deletion, none of them are needed here, and 2. Singleton does not provide
 // a way to clear the pointer after the instance being destroyed.
-UsbService* usb_service_instance = NULL;
-bool usb_service_instance_destroyed = false;
+UsbService* g_usb_service_instance = NULL;
+bool g_usb_service_instance_destroyed = false;
 
 class ExitObserver : public content::NotificationObserver {
  public:
@@ -61,7 +61,7 @@ class ExitObserver : public content::NotificationObserver {
     if (type == chrome::NOTIFICATION_APP_TERMINATING) {
       BrowserThread::DeleteSoon(BrowserThread::FILE,
                                 FROM_HERE,
-                                usb_service_instance);
+                                g_usb_service_instance);
       delete this;
     }
   }
@@ -80,8 +80,8 @@ UsbService::~UsbService() {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
 
   // Prevents creating a new UsbService.
-  usb_service_instance_destroyed = true;
-  usb_service_instance = NULL;
+  g_usb_service_instance_destroyed = true;
+  g_usb_service_instance = NULL;
 
   for (DeviceMap::iterator it = devices_.begin(); it != devices_.end(); ++it) {
     it->second->OnDisconnect();
@@ -90,22 +90,23 @@ UsbService::~UsbService() {
 
 UsbService* UsbService::GetInstance() {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
-  if (usb_service_instance_destroyed) return NULL;
+  if (g_usb_service_instance_destroyed)
+    return NULL;
 
-  if (!usb_service_instance) {
+  if (!g_usb_service_instance) {
     PlatformUsbContext context = NULL;
     if (libusb_init(&context) != LIBUSB_SUCCESS)
       return NULL;
     if (!context)
       return NULL;
 
-    usb_service_instance = new UsbService(context);
+    g_usb_service_instance = new UsbService(context);
 
     // Will be deleted upon NOTIFICATION_APP_TERMINATING.
     new ExitObserver();
   }
 
-  return usb_service_instance;
+  return g_usb_service_instance;
 }
 
 void UsbService::GetDevices(std::vector<scoped_refptr<UsbDevice> >* devices) {
